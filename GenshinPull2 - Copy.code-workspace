@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"name": "GenshinPull2 - Copy",
+			"path": "."
+		}
+	],
+	"settings": {
+		"CodeGPT.apiKey": "OpenAI"
+	}
+}

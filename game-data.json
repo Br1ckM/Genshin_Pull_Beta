@@ -1,0 +1,170 @@
+{
+  "balance": {
+    "levelUpCostBase": 100,
+    "levelUpCostPerLevel": 50,
+    "scalingExponent": 1.1,
+    "weaponEnhanceBaseXP": 100,
+    "weaponEnhanceMultiplier": {
+      "3-star": 1,
+      "4-star": 1.5,
+      "5-star": 2
+    }
+  },
+  "gacha": {
+    "pullRates": {
+      "5-star": 0.006,
+      "4-star": 0.051,
+      "3-star": 0.943
+    },
+    "pitySystem": {
+      "5-star": {
+        "softPity": {
+          "threshold": 75,
+          "multiplier": 0.06
+        },
+        "hardPity": 90
+      },
+      "4-star": {
+        "hardPity": 10
+      }
+    },
+    "singlePullCost": 10,
+    "tenPullCost": 90
+  },
+  "characters": [
+    {
+      "name": "Pyromancer",
+      "baseRarity": "5-star",
+      "element": "Fire",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Magic"
+    },
+    {
+      "name": "Healer",
+      "baseRarity": "5-star",
+      "element": "Water",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Magic"
+    },
+    {
+      "name": "Warrior",
+      "baseRarity": "5-star",
+      "element": "Earth",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Axe"
+    },
+    {
+      "name": "Archer",
+      "baseRarity": "5-star",
+      "element": "Wind",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Bow"
+    },
+    {
+      "name": "Noelle",
+      "baseRarity": "5-star",
+      "element": "Earth",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Barbara",
+      "baseRarity": "5-star",
+      "element": "Water",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Magic"
+    },
+    {
+      "name": "Keqing",
+      "baseRarity": "5-star",
+      "element": "Electric",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Diluc",
+      "baseRarity": "5-star",
+      "element": "Fire",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Axe"
+    },
+    {
+      "name": "Beidou",
+      "baseRarity": "5-star",
+      "element": "Electric",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Polearm"
+    },
+    {
+      "name": "Fischl",
+      "baseRarity": "5-star",
+      "element": "Electric",
+      "skills": [
+        "Fireball",
+        "Fireball",
+        "FireResistance"
+      ],
+      "weaponClass": "Polearm"
+    }
+  ],
+  "banners": [
+    {
+      "name": "Standard Wish",
+      "featured5Star": "Keqing",
+      "featured4Stars": [
+        "Barbara",
+        "Fischl",
+        "Noelle"
+      ],
+      "duration": "Infinity",
+      "startTime": "2024-06-01T00:00:00Z"
+    },
+    {
+      "name": "Ballad in Goblets",
+      "featured5Star": "Venti",
+      "featured4Stars": [
+        "Xiangling",
+        "Razor",
+        "Sucrose"
+      ],
+      "duration": 1209600000,
+      "startTime": "2024-06-07T00:00:00Z"
+    }
+  ]
+}

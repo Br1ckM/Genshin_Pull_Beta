@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>Gacha Game System</title>
+	<link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+	<div id="header-bar">
+		<div id="navigation-buttons">
+		  <!-- Navigation buttons will be dynamically inserted here -->
+		  <button id="gacha-button">Gacha</button>
+		  <button id="collection-button">Collection</button>
+		  <button id="autobattler-button">Autobattler</button>
+		  <button id="weapon-management-button">Weapons</button>
+		</div>
+		<div id="resource-display">
+		  <!-- Resources dynamically updated -->
+		  <p>Crystallized XP: <span id="resource-xp">0</span></p>
+		  <p>Soul Gems: <span id="resource-gems">0</span></p>
+		</div>
+	  </div>	  
+	<div id="app">
+		<div id="gacha-page" class="page">
+			<div class="gacha-container">
+			  <!-- Left Sidebar: Currently Available Banners -->
+<!-- Left Sidebar: Available and Upcoming Banners -->
+				<aside id="banners-sidebar" class="gacha-sidebar">
+					<!-- Currently Available Banners -->
+					<h3>Available Banners</h3>
+					<div id="available-banners-list">
+					<!-- Dynamically filled with available banners -->
+					</div>
+				
+					<hr /> <!-- Separator -->
+				
+					<!-- Upcoming Banners -->
+					<h3>Upcoming Banners</h3>
+					<div id="upcoming-banners-list">
+					<!-- Dynamically filled with upcoming banners -->
+					</div>
+				</aside>
+				<!-- Main Section: Currently Selected Banner -->
+				<main id="selected-banner" class="gacha-main">
+					<div class="full-banner-display">
+					  <!-- Banner Image -->
+					  <div id="gacha-banner-image" class="gacha-banner-image"></div>
+				  
+					  <!-- Banner Overlay -->
+					  <div class="banner-overlay">
+						<h2 id="banner-title">Standard Wish</h2>
+						<p id="featured-5-star">Featured 5★: Keqing</p>
+						<p id="banner-time-remaining">Infinite time remaining</p>
+					  </div>
+				  
+					  <!-- Pull Buttons -->
+					  <div class="banner-actions">
+						<button id="pull-single-button" class="pull-button">Pull 1x</button>
+						<button id="pull-ten-button" class="pull-button">Pull 10x</button>
+					  </div>
+					</div>
+				  </main>
+			</div>
+		  </div>
+		<div id="character-collection-page" class="page" style="display: none;">
+			<div class="collection-container">
+				<div class="character-list">
+				</div>
+				<div id="character-details-container">
+					<div id="character-art">
+					  <img id="character-image" src="images/characters/default.png" alt="Character Art">
+					</div>
+					<div id="character-info">
+					  <h2 id="character-name">Character Name</h2>
+					  <p id="character-rarity">Rarity: <span class="rarity-text">5★</span></p>
+					  <p id="character-element">Element: <span class="element-text">Fire</span></p>
+					  <p id="character-class">Weapon Class: <span class="class-text">Sword</span></p>
+					  <div id="character-stats">
+						<h3>Stats</h3>
+						<ul>
+						  <li>Level: <span id="character-level">1</span>/<span id="character-max-level">100</span></li>
+						  <li>HP: <span id="character-hp">1200</span>/<span id="character-max-hp">1200</span></li>
+						  <li>ATK: <span id="character-atk">30</span></li>
+						  <li>DEF: <span id="character-def">25</span></li>
+						  <li>SPEED: <span id="character-speed">140</span></li>
+						  <li>CRIT CHANCE: <span id="character-crit-chance">15</span>%</li>
+						  <li>CRIT DAMAGE: <span id="character-crit-damage">2.0</span>x</li>
+						</ul>
+					  </div>
+					  <div id="character-weapon">
+						<h3>Equipped Weapon</h3>
+						<p id="weapon-name">None</p>
+						<div id="weapon-selector"></div>
+					  </div>
+					  <div id="character-abilities">
+						<h3>Abilities</h3>
+						<p id="ability-1">Skill 1: <span id="character-skill-1">Fireball</span></p>
+						<p id="ability-2">Skill 2: <span id="character-skill-2">Blazing Heat</span></p>
+						<p id="ability-passive">Passive: <span id="character-passive">Flame Aura</span></p>
+					  </div>
+					  <div id="character-actions">
+						<button id="level-up-button">Level Up</button>
+						<button id="awaken-button">Awaken</button>
+					  </div>
+					</div>
+				  </div>			  
+			</div>
+		</div>        
+		<div id="autobattler-page" class="page" style="display: none;">
+			<h1>Autobattler</h1>
+			<div id="current-stage"></div>
+			<div id="character-selection">
+				<h2>Select Your Team (up to 5 characters)</h2>
+				<div id="available-characters" class="character-grid"></div>
+			</div>
+			<div id="selected-team">
+				<h3>Selected Team:</h3>
+				<div id="team-members" class="character-grid"></div>
+			</div>
+			<div id="battleground">
+				<div id="allies"></div>
+				<div id="enemies"></div>
+			</div>
+			<div id="battle-ui">
+				<div id="ally-stats"></div>
+				<div id="enemy-stats"></div>
+			</div>
+			<div id="battle-controls">
+				<button id="start-battle">Start Farming</button>
+				<button id="challenge-stage">Challenge Next Stage</button>
+			</div>
+
+			<div id="battle-log"></div>
+			<div id="resources"></div>
+		</div>
+		<div id="weapon-management-page" class="page" style="display: none;">
+			<div class="weapon-management-container">
+				<!-- Weapon List -->
+				<div id="weapon-list-section" class="weapon-column">
+					<div id="sort-controls" class="sort-controls">
+						<select id="weapon-sort-select">
+							<option value="name">Name</option>
+							<option value="rarity">Rarity</option>
+							<option value="level">Level</option>
+							<option value="atk">Attack</option>
+						</select>
+						<button id="sort-order-btn">↑</button>
+					</div>
+					<div id="weapon-list"></div>
+				</div>
+				<!-- Weapon Details -->
+				<div id="weapon-details-section" class="weapon-column">
+					<div id="weapon-details"></div>
+				</div>
+			</div>
+		</div>    
+	</div>
+	<div id="auto-enhance-modal" class="modal">
+		<div class="modal-content">
+			<span class="close">&times;</span>
+			<div class="filter-section">
+				<h4>Use as Materials:</h4>
+				<div class="rarity-filters">
+					<label><input type="checkbox" data-rarity="3-star"> 3★ Weapons</label>
+					<label><input type="checkbox" data-rarity="4-star"> 4★ Weapons</label>
+					<label><input type="checkbox" data-rarity="5-star"> 5★ Weapons</label>
+				</div>
+				<div class="level-filter">
+					<label>Max Level: <input type="number" id="max-level-filter" min="1" max="90" value="1"></label>
+				</div>
+				<div class="other-filters">
+					<label><input type="checkbox" id="exclude-equipped" checked> Exclude Equipped</label>
+					<label><input type="checkbox" id="exclude-locked" checked> Exclude Locked</label>
+				</div>
+			</div>
+			<button id="apply-auto-enhance">Apply Enhancement</button>
+		</div>
+	</div>    
+	<div id="item-modal" class="modal">
+		<div class="modal-content">
+			<img id="modal-image" src="" alt="Item Image">
+			<h2 id="modal-name"></h2>
+			<p id="modal-rarity"></p>
+			<p id="modal-count"></p>
+		</div>
+	</div>
+	<div id="gacha-modal" class="modal">
+		<div class="modal-content">
+		  <span id="close-modal" class="close">&times;</span>
+		  <div id="gacha-results">
+			<!-- Gacha pull results will be dynamically added here -->
+		  </div>
+		</div>
+	  </div>
+	  
+	<script type="module" src="script.js"></script>
+</body>
+
+</html>
