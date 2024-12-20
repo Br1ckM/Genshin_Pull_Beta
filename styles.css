@@ -1614,3 +1614,52 @@ button {
   border: 2px solid #4caf50; /* Green border for active banner */
   box-shadow: 0 0 10px rgba(76, 175, 80, 0.6); /* Subtle green glow */
 }
+
+/* Settings Modal */
+#settings-modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+#settings-modal .modal-content {
+  background-color: var(--steel);
+  color: var(--text-dark);
+  margin: 10% auto;
+  padding: 20px;
+  border-radius: 10px;
+  width: 30%;
+  text-align: center;
+}
+
+#settings-modal .settings-options label {
+  display: block;
+  margin: 15px 0;
+}
+
+#settings-modal button {
+  background-color: var(--accent);
+  color: var(--text-light);
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+#settings-modal button:hover {
+  background-color: var(--highlight);
+  color: var(--text-dark);
+}
+
+#hard-reset {
+  background-color: #d9534f; /* Red for emphasis */
+}
+
+#hard-reset:hover {
+  background-color: #c9302c;
+}

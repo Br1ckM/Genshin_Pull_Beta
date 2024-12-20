@@ -6,17 +6,24 @@ let gameData = {}; // To store loaded game data
 
 async function loadGameData() {
   try {
+    // Fetch game data from a JSON file
     const response = await fetch('game-data.json');
     if (!response.ok) throw new Error('Failed to load game data');
 
+    // Parse the response as JSON
     gameData = await response.json();
     console.log('[DEBUG] Game data loaded:', gameData);
 
+    // Initialize game from the loaded data
     initializeGameFromData();
+
+    // Only load saved progress after game data is fully initialized
+    loadSavedProgress();
   } catch (error) {
     console.error('Error loading game data:', error);
   }
 }
+
 
 let skipActive = false; // Flag to track skip action
 let countdownInterval = null; // Track the interval to clear on banner switch
@@ -26,7 +33,7 @@ class ResourceManager {
   constructor() {
     this.resources = new Map([
       ['crystallizedXP', 0],
-      ['soulGems', 100]
+      ['soulGems', 5000000]
     ]);
   }
 
@@ -84,6 +91,7 @@ class ElementalWheel {
 // Character
 class Character {
   constructor(name, baseRarity, element, assignedWeaponClass) {
+    this.uuid = uuidv4();
     this.name = name;
     this.baseRarity = baseRarity;
     this.currentRarity = baseRarity; // Current rarity may change due to awakening
@@ -95,22 +103,15 @@ class Character {
     this.duplicates = 0;
 
     this.weapon = null;
-    this.hp = this.calculateBaseStat('hp');
-    this.maxHp = this.hp;
+    this.hp = null; // Defer calculation
+    this.maxHp = null;
     this.energy = 0;
     this.isAlly = true;
 
     // Base stats
-    this.baseStats = {
-      atk: this.calculateBaseStat('atk'),
-      def: this.calculateBaseStat('def'),
-      speed: this.calculateBaseStat('speed'),
-      energyRecharge: this.calculateBaseStat('energyRecharge'),
-      critChance: this.calculateBaseStat('critChance'),
-      critDamage: this.calculateBaseStat('critDamage')
-    };
-    this.growthRate = this.getGrowthRates(); // Growth rates per rarity
-    this.currentStats = { ...this.baseStats };
+    this.baseStats = null; // Defer calculation
+    this.growthRate = null; // Defer calculation
+    this.currentStats = null; // Defer calculation
 
     // Skills
     this.skill1 = null;
@@ -118,25 +119,36 @@ class Character {
     this.passive = null;
   }
 
+  initializeStats() {
+    // Retrieve stats and growth rates from gameData
+    const stats = gameData.characterStats.baseStats[this.baseRarity];
+    const growthRates = gameData.characterStats.growthRates[this.baseRarity];
+
+    if (!stats || !growthRates) {
+      console.error(`[DEBUG] Missing stats or growth rates for rarity: ${this.baseRarity}`);
+      return;
+    }
+
+    // Initialize base stats and growth rates
+    this.baseStats = { ...stats }; // Base stats from gameData
+    this.growthRate = { ...growthRates }; // Growth rates from gameData
+    this.currentStats = { ...stats }; // Initialize current stats to base stats
+
+    // Set initial HP
+    this.hp = stats.hp;
+    this.maxHp = stats.hp;
+  }
+
+
+
   // Max level depends on the character's rarity
   getMaxLevel() {
-    const rarityLevels = {
-      '3-star': 60,
-      '4-star': 80,
-      '5-star': 100,
-      '6-star': 120,
-    };
-    return rarityLevels[this.currentRarity] || 60;
+    return gameData.characterStats.rarityLevels[this.baseRarity] || 60;
   }
 
   // Calculate base stats based on rarity and level
   calculateBaseStat(stat) {
-    const baseStats = {
-      '3-star': { hp: 800, atk: 20, def: 15, speed: 100, energyRecharge: 1.0, critChance: 5, critDamage: 1.5 },
-      '4-star': { hp: 1000, atk: 25, def: 20, speed: 120, energyRecharge: 1.2, critChance: 10, critDamage: 1.75 },
-      '5-star': { hp: 1200, atk: 30, def: 25, speed: 140, energyRecharge: 1.5, critChance: 15, critDamage: 2.0 }
-    };
-    return baseStats[this.baseRarity][stat] || 0;
+    return this.baseStats[stat] || 0;
   }
   getGrowthRates() {
     return {
@@ -183,7 +195,7 @@ class Character {
   // Recalculate stats after leveling up or equipping a weapon
   updateStats() {
     this.currentStats = { ...this.baseStats };
-  
+
     // Add weapon bonuses if a weapon is equipped
     if (this.weapon && this.weapon.baseStats) {
       const weaponStats = this.weapon.getCurrentStats();
@@ -194,29 +206,13 @@ class Character {
       });
     }
   }
-  
 
   applyStatGrowth() {
-    const growth = this.growthRate;
-    if (!growth) {
-      return;
-    }
-    // Apply growth to each stat
-    this.baseStats.hp = roundToTwoDecimals(this.baseStats.hp + growth.hp);
-    this.baseStats.atk = roundToTwoDecimals(this.baseStats.atk + growth.atk);
-    this.baseStats.def = roundToTwoDecimals(this.baseStats.def + growth.def);
-    this.baseStats.speed = roundToTwoDecimals(this.baseStats.speed + growth.speed);
-    this.baseStats.energyRecharge = roundToTwoDecimals(this.baseStats.energyRecharge + growth.energyRecharge);
-    this.baseStats.critChance = roundToTwoDecimals(Math.min(this.baseStats.critChance + growth.critChance, 100)); // Cap at 100%
-    this.baseStats.critDamage = roundToTwoDecimals(this.baseStats.critDamage + growth.critDamage);
-  
-    // Preserve proportional HP
-    const hpPercentage = this.hp / this.maxHp;
-    this.maxHp = roundToTwoDecimals(this.maxHp + growth.hp);
-    this.hp = Math.floor(this.maxHp * hpPercentage); // Scale current HP based on max HP
+    Object.keys(this.growthRate).forEach((stat) => {
+      this.baseStats[stat] += this.growthRate[stat];
+    });
+    this.currentStats = { ...this.baseStats };
   }
-  
-
 
   rechargeEnergy() {
     this.energy = Math.min(100, this.energy + this.energyRecharge * 10); // Example multiplier for recharge rate
@@ -229,46 +225,46 @@ class Character {
       console.log(`${this.name} cannot awaken - insufficient duplicates.`);
       return false;
     }
-  
+
     this.duplicates--;
     this.awakening++;
-  
+
     // Apply awakening boosts
     this.hp = Math.floor(this.hp * 1.1);
     this.currentStats.atk = Math.floor(this.currentStats.atk * 1.1);
     this.currentStats.def = Math.floor(this.currentStats.def * 1.1);
     this.currentStats.speed = Math.floor(this.currentStats.speed * 1.1); // Use currentStats.speed
     this.currentStats.energyRecharge = Math.min(this.currentStats.energyRecharge + 0.1, 2.0); // Cap recharge
-  
+
     console.log(
       `${this.name} awakened to level ${this.awakening}. Stats: HP: ${this.hp}, ATK: ${this.currentStats.atk}, DEF: ${this.currentStats.def}, SPEED: ${this.currentStats.speed}, ENERGY RECHARGE: ${this.currentStats.energyRecharge}`
     );
-  
+
     if (this.awakening >= 5) {
       this.promoteRarity();
     }
-  
+
     return true;
   }
-  
+
   promoteRarity() {
     const rarities = ['3-star', '4-star', '5-star', '6-star'];
     const currentIndex = rarities.indexOf(this.currentRarity);
-  
+
     if (currentIndex < rarities.length - 1) {
       const newRarity = rarities[currentIndex + 1];
       console.log(`${this.name} is being promoted from ${this.currentRarity} to ${newRarity}`);
-  
+
       this.currentRarity = newRarity;
       this.awakening = 0;
-  
+
       // Apply significant boosts during rarity promotion
       this.hp = Math.floor(this.hp * 1.2);
       this.currentStats.atk = Math.floor(this.currentStats.atk * 1.2);
       this.currentStats.def = Math.floor(this.currentStats.def * 1.2);
       this.currentStats.speed = Math.floor(this.currentStats.speed * 1.2);
       this.currentStats.energyRecharge = Math.min(this.currentStats.energyRecharge + 0.2, 2.0); // Cap recharge
-  
+
       console.log(
         `${this.name} promoted to ${this.currentRarity}. Stats increased significantly!`
       );
@@ -321,10 +317,11 @@ class Character {
 // Weapon
 class Weapon {
   constructor(name, rarity, baseStats, type) {
+    this.uuid = uuidv4();
     this.name = name;
     this.rarity = rarity;
     this.type = type;
-    this.baseStats = baseStats;
+    this.baseStats = baseStats; // Will be populated in initializeStats
     this.maxLevel = this.getMaxLevel();
     this.level = 1;
     this.awakened = false;
@@ -334,26 +331,36 @@ class Weapon {
     this.locked = false;
   }
 
+  // Returns the max level based on rarity
   getMaxLevel() {
-    switch (this.rarity) {
-      case '3-star':
-        return 50;
-      case '4-star':
-        return 70;
-      case '5-star':
-        return 90;
-    }
+    const maxLevels = {
+      '3-star': 50,
+      '4-star': 70,
+      '5-star': 90
+    };
+    return maxLevels[this.rarity] || 50;
   }
 
-  getTypeBonus() {
-    const typeMultipliers = {
-      'Sword': { atk: 1.2, def: 1.0 },
-      'Bow': { atk: 1.4, def: 0.8 },
-      'Polearm': { atk: 1.1, def: 1.1 },
-      'Axe': { atk: 1.3, def: 0.9 },
-      'Magic': { atk: 1.5, def: 0.7 }
+  // Dynamically initializes stats based on `gameData`
+  initializeStats() {
+    const baseRanges = gameData.weaponStats.baseRanges[this.rarity];
+    const typeModifiers = gameData.weaponStats.typeModifiers[this.type];
+
+    if (!baseRanges || !typeModifiers) {
+      console.error(`[DEBUG] Missing weapon data for rarity: ${this.rarity} or type: ${this.type}`);
+      return;
+    }
+
+    this.baseStats = {
+      atk: [
+        Math.round(baseRanges.atk[0] * typeModifiers.atk),
+        Math.round(baseRanges.atk[1] * typeModifiers.atk)
+      ],
+      def: [
+        Math.round(baseRanges.def[0] * typeModifiers.def),
+        Math.round(baseRanges.def[1] * typeModifiers.def)
+      ]
     };
-    return typeMultipliers[this.type] || { atk: 1.0, def: 1.0 };
   }
 
   addEnhancementXP(sacrificedWeapon) {
@@ -363,16 +370,16 @@ class Weapon {
       '4-star': 200,
       '5-star': 500
     };
-  
+
     // Calculate base XP
     let gainedXP = baseXPValues[sacrificedWeapon.rarity];
-  
+
     // Add XP for weapon levels above 1
     gainedXP += (sacrificedWeapon.level - 1) * 20;
-  
+
     // Apply the highest applicable multiplier
     let multiplier = 1;
-  
+
     // Check for same weapon (highest priority)
     if (sacrificedWeapon.name === this.name) {
       multiplier = 2;
@@ -381,13 +388,13 @@ class Weapon {
     else if (sacrificedWeapon.type === this.type) {
       multiplier = 1.5;
     }
-  
+
     // Apply the multiplier
     gainedXP *= multiplier;
-  
+
     // Add the XP to the weapon
     this.enhancementXP += gainedXP;
-  
+
     // Level up if enough XP is gained
     while (this.enhancementXP >= this.xpToNextLevel && this.level < this.maxLevel) {
       this.enhancementXP -= this.xpToNextLevel;
@@ -399,33 +406,39 @@ class Weapon {
       console.log(`[DEBUG] Updating stats for ${this.equippedBy.name} due to weapon enhancement.`);
       this.equippedBy.updateStats();
     }
-  
+
     console.log(`${this.name} gained ${gainedXP} XP from sacrificing ${sacrificedWeapon.name}`);
     return gainedXP;
   }
-  
 
+  // Calculates XP required for the next level
   calculateXPRequired() {
-    const baseXP = 100;
+    const baseXP = 100; // Base XP required for level 1
     const rarityMultiplier = {
-      '3-star': 1,
-      '4-star': 1.5,
-      '5-star': 2
+      "3-star": 1,
+      "4-star": 1.5,
+      "5-star": 2,
     };
     return Math.floor(baseXP * rarityMultiplier[this.rarity] * this.level);
   }
 
 
   getCurrentStats() {
-    const levelMultiplier = 1 + (this.level - 1) * 0.1;
-    const awakenedMultiplier = this.awakened ? 1.2 : 1;
-    const typeBonus = this.getTypeBonus();
+    if (!this.baseStats || typeof this.baseStats.atk !== "number" || typeof this.baseStats.def !== "number") {
+      console.error(`[DEBUG] Base stats are invalid for weapon: ${this.name}`, this.baseStats);
+      this.baseStats = { atk: 0, def: 0 }; // Default fallback
+    }
+
+    const levelMultiplier = 1 + (this.level - 1) * 0.1; // 10% per level
+    const awakenedMultiplier = this.awakened ? 1.2 : 1.0; // 20% bonus if awakened
+    const typeBonus = gameData.weaponStats.typeModifiers[this.type] || { atk: 1.0, def: 1.0 };
 
     return {
       atk: Math.floor(this.baseStats.atk * levelMultiplier * awakenedMultiplier * typeBonus.atk),
       def: Math.floor(this.baseStats.def * levelMultiplier * awakenedMultiplier * typeBonus.def)
     };
   }
+
 
   levelUp() {
     if (this.level >= this.maxLevel) {
@@ -450,39 +463,29 @@ class Weapon {
     );
   }
 
+  // Calculates the current stat ranges with scaling
   getStatRanges() {
-    const baseRanges = {
-      '3-star': { atk: [50, 100], def: [30, 60] },
-      '4-star': { atk: [100, 150], def: [60, 90] },
-      '5-star': { atk: [150, 200], def: [90, 120] }
-    };
-  
-    const typeModifiers = {
-      'Sword': { atk: 1.2, def: 1.0 },
-      'Bow': { atk: 1.4, def: 0.8 },
-      'Polearm': { atk: 1.1, def: 1.1 },
-      'Axe': { atk: 1.3, def: 0.9 },
-      'Magic': { atk: 1.5, def: 0.7 }
-    };
-  
-    const levelScaling = 1 + (this.level - 1) * 0.05; // 5% increase per level
-  
-    const baseRange = baseRanges[this.rarity];
-    const typeModifier = typeModifiers[this.type] || { atk: 1, def: 1 };
-  
+    const baseRanges = gameData.weaponStats.baseRanges[this.rarity];
+    const typeModifiers = gameData.weaponStats.typeModifiers[this.type];
+
+    if (!baseRanges || !typeModifiers) {
+      console.error(`[DEBUG] Missing data for rarity: ${this.rarity} or type: ${this.type}`);
+      return { atk: [0, 0], def: [0, 0] }; // Default fallback
+    }
+
     return {
       atk: [
-        Math.round(baseRange.atk[0] * typeModifier.atk * levelScaling),
-        Math.round(baseRange.atk[1] * typeModifier.atk * levelScaling)
+        Math.round(baseRanges.atk[0] * typeModifiers.atk),
+        Math.round(baseRanges.atk[1] * typeModifiers.atk)
       ],
       def: [
-        Math.round(baseRange.def[0] * typeModifier.def * levelScaling),
-        Math.round(baseRange.def[1] * typeModifier.def * levelScaling)
+        Math.round(baseRanges.def[0] * typeModifiers.def),
+        Math.round(baseRanges.def[1] * typeModifiers.def)
       ]
     };
   }
-  
-  
+
+
 
   awaken(resourceManager, fodderWeapon) {
     const awakenCost = 500;
@@ -516,12 +519,13 @@ class Weapon {
 
 // Ability
 class Ability {
-  constructor(name, description, effect, cooldown) {
-    this.name = name;
-    this.description = description;
-    this.effect = effect;
-    this.cooldown = cooldown;
-    this.currentCooldown = 0;
+  constructor(name, description, effect, cooldown, triggerTiming = "On Use") {
+    this.name = name;                   // Name of the ability
+    this.description = description;     // Description of the ability
+    this.effect = effect;               // Function defining the effect
+    this.cooldown = cooldown;           // Cooldown duration
+    this.currentCooldown = 0;           // Tracks current cooldown status
+    this.triggerTiming = triggerTiming; // Timing for when the ability triggers
   }
 
   use(caster, targets) {
@@ -530,13 +534,17 @@ class Ability {
       this.currentCooldown = this.cooldown;
       return result;
     }
-    return null;
+    return null; // Cooldown not ready
   }
 
   reduceCooldown() {
     if (this.currentCooldown > 0) {
       this.currentCooldown--;
     }
+  }
+
+  isTriggeredAt(timing) {
+    return this.triggerTiming === timing;
   }
 }
 
@@ -556,12 +564,12 @@ class CharacterManager {
     const skill1 = this.abilities[skill1Name];
     const skill2 = this.abilities[skill2Name];
     const passive = this.abilities[passiveName];
-  
+
     if (!skill1 || !skill2 || !passive) {
       console.error(`[DEBUG] One or more abilities not found for character: ${name}`);
       return;
     }
-  
+
     this.characterDefinitions[name] = {
       name,
       baseRarity,
@@ -571,27 +579,30 @@ class CharacterManager {
       passiveName,
       assignedWeaponClass: weaponClass
     };
-  
+
     console.log(`[DEBUG] Defined character: ${name}, Rarity: ${baseRarity}, Element: ${element}, Weapon Class: ${weaponClass}`);
   }
-  
+
 
   addOwnedCharacter(name) {
     const characterDef = this.characterDefinitions[name];
-  
+
     if (characterDef) {
       if (!this.ownedCharacters[name]) {
-        const { baseRarity, element, skill1Name, skill2Name, passiveName , assignedWeaponClass} = characterDef;
-  
+        const { baseRarity, element, skill1Name, skill2Name, passiveName, assignedWeaponClass } = characterDef;
+
         const newCharacter = new Character(name, baseRarity, element, assignedWeaponClass);
         newCharacter.setSkills(
           this.abilities[skill1Name],
           this.abilities[skill2Name],
           this.abilities[passiveName]
         );
-  
+
+        // Initialize the character's stats
+        newCharacter.initializeStats();
+
         this.ownedCharacters[name] = newCharacter;
-  
+
         console.log(`[DEBUG] Added owned character: ${name}`);
       } else {
         this.ownedCharacters[name].addDuplicate();
@@ -600,11 +611,17 @@ class CharacterManager {
     } else {
       console.warn(`[DEBUG] Character definition not found for: ${name}`);
     }
-  }  
+  }
 
   getOwnedCharacter(name) {
     return this.ownedCharacters[name];
   }
+
+  getOwnedCharacterByUUID(uuid) {
+    return Object.values(this.ownedCharacters).find((char) => char.uuid === uuid);
+
+  }
+
 
   getAllOwnedCharacters() {
     return Object.values(this.ownedCharacters);
@@ -677,12 +694,12 @@ class WeaponManager {
       this.weapons.splice(index, 1);
     }
 
-      // Refresh Character Details if weapon is equipped
-  if (targetWeapon.equippedBy) {
-    targetWeapon.equippedBy.updateStats();
-    console.log(`[DEBUG] Stats updated for ${targetWeapon.equippedBy.name}`);
-    characterCollection.updateCharacterDetails();
-  }
+    // Refresh Character Details if weapon is equipped
+    if (targetWeapon.equippedBy) {
+      targetWeapon.equippedBy.updateStats();
+      console.log(`[DEBUG] Stats updated for ${targetWeapon.equippedBy.name}`);
+      characterCollection.updateCharacterDetails();
+    }
 
     return true;
   }
@@ -702,15 +719,15 @@ class WeaponManager {
 
   assignWeaponToCharacter(character, weapon) {
     if (weapon.equippedBy && weapon.equippedBy !== character) {
-        console.log(`Unequipping ${weapon.name} from ${weapon.equippedBy.name}.`);
-        weapon.equippedBy.unequipWeapon();
+      console.log(`Unequipping ${weapon.name} from ${weapon.equippedBy.name}.`);
+      weapon.equippedBy.unequipWeapon();
     }
     character.equipWeapon(weapon);
 
     // Update Character Collection UI after equipping weapon
     characterCollection.renderCharacters();
     characterCollection.updateCharacterDetails();
-}
+  }
 
 
 
@@ -764,11 +781,11 @@ class Banner {
 class EnemyFactory {
   constructor() {
     this.baseStats = {
-      'Fire': { hp: 100, atk: 15, def: 5, speed: 100, energyRecharge: 1.0 },
-      'Water': { hp: 120, atk: 10, def: 10, speed: 90, energyRecharge: 1.2 },
-      'Earth': { hp: 150, atk: 8, def: 15, speed: 80, energyRecharge: 1.1 },
-      'Wind': { hp: 90, atk: 12, def: 7, speed: 110, energyRecharge: 1.3 },
-      'Electric': { hp: 110, atk: 14, def: 9, speed: 105, energyRecharge: 1.5 }
+      'Fire': { hp: 1000, atk: 60, def: 20, speed: 100, energyRecharge: 1.0 },
+      'Water': { hp: 1200, atk: 50, def: 25, speed: 90, energyRecharge: 1.2 },
+      'Earth': { hp: 1300, atk: 45, def: 30, speed: 80, energyRecharge: 1.1 },
+      'Wind': { hp: 900, atk: 55, def: 22, speed: 110, energyRecharge: 1.3 },
+      'Electric': { hp: 950, atk: 58, def: 24, speed: 105, energyRecharge: 1.5 }
     };
 
     this.skills = {
@@ -783,43 +800,35 @@ class EnemyFactory {
   createEnemy(stage) {
     const element = this.getRandomElement();
     const baseStats = this.baseStats[element];
-    const scale = 1 + (stage - 1) * 0.1; // Scale stats by stage level
 
-    console.log(`Generated enemy stats:`, {
-      hp: Math.floor(baseStats.hp * scale),
-      atk: Math.floor(baseStats.atk * scale),
-      def: Math.floor(baseStats.def * scale),
-      speed: Math.floor(baseStats.speed * scale),
-      energyRecharge: baseStats.energyRecharge + stage * 0.05
-    });
-    
+    const hpScale = 1 + (stage - 1) * 0.075; // Moderate HP scaling
+    const atkScale = 1 + (stage - 1) * 0.1;  // Slightly stronger attack scaling
+    const defScale = 1 + (stage - 1) * 0.07; // Slight DEF scaling
+    const speedScale = Math.min(1 + (stage - 1) * 0.02, 1.3); // Speed capped at 1.3x
+    const critChanceScale = Math.min(10 + stage * 0.2, 40);   // Crit chance maxes at 40%
+    const critDamageScale = 1.5 + stage * 0.02;              // Gradual crit damage growth
 
     return {
       name: `${element} Elemental`,
       element: element,
-      hp: Math.floor(baseStats.hp * scale),
-      maxHp: Math.floor(baseStats.hp * scale),
-      atk: Math.floor(baseStats.atk * scale),
-      def: Math.floor(baseStats.def * scale),
-      speed: Math.floor(baseStats.speed * scale), // Scaled speed
-      energy: 0, // Starts at 0
-      isAlly: false, // Mark as enemy
+      hp: Math.floor(baseStats.hp * hpScale),
+      maxHp: Math.floor(baseStats.hp * hpScale),
+      atk: Math.floor(baseStats.atk * atkScale),
+      def: Math.floor(baseStats.def * defScale),
+      speed: Math.floor(baseStats.speed * speedScale),
+      energy: 0,
+      isAlly: false,
       currentStats: {
-        atk: Math.floor(baseStats.atk * scale),
-        def: Math.floor(baseStats.def * scale),
-        speed: Math.floor(baseStats.speed * scale),
-        energyRecharge: baseStats.energyRecharge + stage * 0.05, // Scaled energy recharge
-        critChance: Math.min(10 + stage * 0.5, 50), // Enemies' crit chance scales with stage
-        critDamage: 1.5 + stage * 0.05, // Enemies' crit damage scales with stage
+        atk: Math.floor(baseStats.atk * atkScale),
+        def: Math.floor(baseStats.def * defScale),
+        speed: Math.floor(baseStats.speed * speedScale),
+        energyRecharge: baseStats.energyRecharge + stage * 0.04,
+        critChance: critChanceScale,
+        critDamage: critDamageScale
       },
       skill1: this.generateSkill(element, 1),
       skill2: this.generateSkill(element, 2)
     };
-  }
-
-  generateEnemies(stage) {
-    const enemyCount = Math.min(Math.floor(Math.random() * 3) + 3, 5); // 3-5 enemies per stage
-    return Array.from({ length: enemyCount }, () => this.createEnemy(stage));
   }
 
   getRandomElement() {
@@ -830,8 +839,20 @@ class EnemyFactory {
   generateSkill(element, skillNumber) {
     return {
       name: this.skills[element][skillNumber],
-      damage: 10 + skillNumber * 5 // Simple damage calculation for skills
+      damage: 10 + skillNumber * 5
     };
+  }
+
+  generateEnemies(stage) {
+    const enemyCount = this.getEnemyCount(stage);
+    return Array.from({ length: enemyCount }, () => this.createEnemy(stage));
+  }
+
+  getEnemyCount(stage) {
+    if (stage === 1) return 1 + Math.floor(Math.random() * 2); // 1-2 enemies for Stage 1
+    if (stage <= 4) return 2 + Math.floor(Math.random() * 2); // 2-3 enemies for Stage 2-4
+    if (stage <= 10) return 3 + Math.floor(Math.random() * 2); // 3-4 enemies for Stage 5-10
+    return 4 + Math.floor(Math.random() * 2); // 4-5 enemies for Stage 11+
   }
 }
 
@@ -888,8 +909,7 @@ const app = {
 const gacha = {
   inventory: { characters: {}, weapons: {} },
   pityCounter: 0,
-  softPityThreshold: 75,
-  hardPityThreshold: 90,
+  fourStarPityCounter: 0,
   pulls: 0,
   randomGenerator: new ComplexRandomGenerator(1000),
   banners: [],
@@ -921,7 +941,7 @@ const gacha = {
       this.currentBanner = banner;
     }
   },
-  
+
   pull: function (num = 1) {
     // Get pull costs from gameData
     const pullCost = num === 10 ? gameData.gacha.tenPullCost : gameData.gacha.singlePullCost;
@@ -931,15 +951,15 @@ const gacha = {
       console.log("Not enough Soul Gems for pull.");
       return [];
     }
-  
+
     let results = [];
     let isStoppedOnFiveStar = false;
-  
+
     for (let i = 0; i < num; i++) {
       this.pulls++;
       const item = this.getRandomItem();
       results.push(item);
-  
+
       // Check for skip logic
       if (skipActive && item.rarity === '5-star') {
         const character = characterManager.getOwnedCharacter(item.name);
@@ -950,62 +970,65 @@ const gacha = {
           break;
         }
       }
-  
+
       if (item.type === 'weapons') {
         this.addWeaponToManager(item);
       }
     }
-  
+
     results.forEach(this.updateInventory.bind(this));
     openGachaModalWithFullScreenReveal(results);
+
+    autosave();
     return results;
   },
-  
 
-  addWeaponToManager: function(weaponData) {
+
+  addWeaponToManager: function (weaponData) {
     console.log('Creating new weapon:', weaponData);
     const typeMapping = {
-        'Wolf\'s Gravestone': 'Axe',
-        'Skyward Blade': 'Sword',
-        'Primordial Jade Winged-Spear': 'Polearm',
-        'Amos\' Bow': 'Bow',
-        'Lost Prayer to the Sacred Winds': 'Magic',
-        'Rust': 'Bow',
-        'Sacrificial Sword': 'Sword',
-        'Dragon\'s Bane': 'Polearm',
-        'Favonius Lance': 'Polearm',
-        'The Widsith': 'Magic',
-        'Cool Steel': 'Sword',
-        'Debate Club': 'Axe',
-        'Black Tassel': 'Polearm',
-        'Slingshot': 'Bow',
-        'Thrilling Tales of Dragon Slayers': 'Magic'
+      'Wolf\'s Gravestone': 'Axe',
+      'Skyward Blade': 'Sword',
+      'Primordial Jade Winged-Spear': 'Polearm',
+      'Amos\' Bow': 'Bow',
+      'Lost Prayer to the Sacred Winds': 'Magic',
+      'Rust': 'Bow',
+      'Sacrificial Sword': 'Sword',
+      'Dragon\'s Bane': 'Polearm',
+      'Favonius Lance': 'Polearm',
+      'The Widsith': 'Magic',
+      'Cool Steel': 'Sword',
+      'Debate Club': 'Axe',
+      'Black Tassel': 'Polearm',
+      'Slingshot': 'Bow',
+      'Thrilling Tales of Dragon Slayers': 'Magic'
     };
 
     const weaponType = typeMapping[weaponData.name] || 'Sword';
 
     const newWeapon = new Weapon(
-        weaponData.name,
-        weaponData.rarity,
-        {
-            atk: Math.floor(Math.random() * 50) + 50,
-            def: Math.floor(Math.random() * 30) + 30
-        },
-        weaponType
+      weaponData.name,
+      weaponData.rarity,
+      {
+        atk: Math.floor(Math.random() * 50) + 50,
+        def: Math.floor(Math.random() * 30) + 30
+      },
+      weaponType
     );
     weaponManager.addWeapon(newWeapon);
   },
 
   getRandomItem: function () {
+
     this.pityCounter++;  // Tracks total pulls for 5-star pity
     this.fourStarPityCounter++; // Tracks pulls for 4-star pity
-  
+
     const pityConfig5Star = gameData.gacha.pitySystem["5-star"];
     const pityConfig4Star = gameData.gacha.pitySystem["4-star"];
     const pullRates = gameData.gacha.pullRates;
-  
+
     let randomNum = this.randomGenerator.getRandomNumber() / 1000;
-  
+
     // --- 5-Star Logic ---
     if (this.pityCounter >= pityConfig5Star.hardPity) {
       this.pityCounter = 0; // Reset 5-star pity counter
@@ -1014,13 +1037,13 @@ const gacha = {
     if (this.pityCounter >= pityConfig5Star.softPity.threshold) {
       randomNum *= (1 + (this.pityCounter - pityConfig5Star.softPity.threshold) * pityConfig5Star.softPity.multiplier);
     }
-  
+
     // --- 4-Star Logic ---
     if (this.fourStarPityCounter >= pityConfig4Star.hardPity) {
       this.fourStarPityCounter = 0; // Reset 4-star pity counter
       return this.getRandomFourStar();
     }
-  
+
     // --- Normal Drop Rates ---
     if (randomNum < pullRates["5-star"]) {
       this.pityCounter = 0; // Reset 5-star pity counter
@@ -1033,15 +1056,30 @@ const gacha = {
     }
   },
 
-  
+
   getRandomFiveStar: function () {
-    if (Math.random() < 0.5) {
-      return { rarity: '5-star', type: 'characters', name: this.currentBanner.featured5Star };
-    } else {
-      const type = Math.random() < 0.5 ? 'characters' : 'weapons';
-      const item = this.items['5-star'][type][Math.floor(Math.random() * this.items['5-star'][type].length)];
-      return { rarity: '5-star', type, name: item };
+    const isFeatured = Math.random() < 0.5;
+    const characterName = isFeatured
+      ? this.currentBanner.featured5Star
+      : this.items['5-star'].characters[
+          Math.floor(Math.random() * this.items['5-star'].characters.length)
+        ];
+  
+    // Validate the character definition
+    const characterDef = characterManager.characterDefinitions[characterName];
+    if (!characterDef) {
+      console.error(`[DEBUG] Character definition not found for 5-star character: ${characterName}`);
+      return null; // Return null if the character is not defined
     }
+  
+    return {
+      rarity: '5-star',
+      type: 'characters',
+      name: characterDef.name,
+      baseRarity: characterDef.baseRarity,
+      element: characterDef.element,
+      weaponClass: characterDef.assignedWeaponClass
+    };
   },
 
   getRandomFourStar: function () {
@@ -1184,20 +1222,20 @@ function openGachaModalWithFullScreenReveal(results) {
 
     results.forEach((result) => {
       const resultDiv = document.createElement('div');
-          // Determine rarity class and stars
-    const rarityClass = `rarity-${result.rarity.toLowerCase().replace(' ', '-')}`;
-    const stars = '★'.repeat(getRarityNumber(result.rarity));
+      // Determine rarity class and stars
+      const rarityClass = `rarity-${result.rarity.toLowerCase().replace(' ', '-')}`;
+      const stars = '★'.repeat(getRarityNumber(result.rarity));
 
-    resultDiv.className = `gacha-result ${rarityClass}`;
-    resultDiv.innerHTML = `
+      resultDiv.className = `gacha-result ${rarityClass}`;
+      resultDiv.innerHTML = `
       <div class="stars">${stars}</div>
       <img src="images/${result.type}/${result.name.toLowerCase().replace(/\s+/g, '_')}.png" alt="${result.name}">
       <p>${result.name}</p>
     `;
-    resultContainer.appendChild(resultDiv);
+      resultContainer.appendChild(resultDiv);
     });
 
-      // Helper function to get the numeric rarity value
+    // Helper function to get the numeric rarity value
     function getRarityNumber(rarity) {
       if (rarity.includes('5')) return 5;
       if (rarity.includes('4')) return 4;
@@ -1236,7 +1274,7 @@ const characterCollection = {
     const characterList = document.querySelector('.character-list');
     if (!characterList) return;
     characterList.innerHTML = ''; // Clear existing character list
-  
+
     // Render all owned characters
     for (const char of characterManager.getAllOwnedCharacters()) {
       const charElement = document.createElement('div');
@@ -1253,7 +1291,7 @@ const characterCollection = {
       characterList.appendChild(charElement);
     }
   },
-  
+
 
   selectCharacter: function (character) {
     this.selectedCharacter = character;
@@ -1262,20 +1300,20 @@ const characterCollection = {
 
   updateCharacterDetails() {
     const char = this.selectedCharacter;
-  
+
     // Get the character details container
     const detailsContainer = document.getElementById('character-details-container');
-  
+
     // Check if a character is selected
     if (!char) {
       console.error('[DEBUG] No character selected for update.');
       detailsContainer.style.display = 'none'; // Hide the container
       return;
     }
-  
+
     // Show the container when a character is selected
     detailsContainer.style.display = 'flex';
-  
+
     // Update Character Image
     const characterImage = document.getElementById('character-image');
     const imageName = char.name.toLowerCase().replace(/\s+/g, '_') + '.png';
@@ -1285,13 +1323,13 @@ const characterCollection = {
       characterImage.src = 'images/characters/default.png';
       console.warn(`[DEBUG] Could not load image for ${char.name}. Using default image.`);
     };
-  
+
     // Update Character Info
     document.getElementById('character-name').textContent = char.name;
     document.getElementById('character-rarity').querySelector('.rarity-text').textContent = `${char.currentRarity}`;
     document.getElementById('character-element').querySelector('.element-text').textContent = char.element;
     document.getElementById('character-class').querySelector('.class-text').textContent = char.assignedWeaponClass;
-  
+
     // Update Stats
     document.getElementById('character-level').textContent = char.level;
     document.getElementById('character-max-level').textContent = char.getMaxLevel();
@@ -1302,21 +1340,21 @@ const characterCollection = {
     document.getElementById('character-speed').textContent = Math.round(char.currentStats.speed);
     document.getElementById('character-crit-chance').textContent = Math.round(char.currentStats.critChance);
     document.getElementById('character-crit-damage').textContent = Math.round(char.currentStats.critDamage);
-  
+
     // Update Weapon Info
     const weaponName = char.weapon ? char.weapon.name : 'None';
     document.getElementById('weapon-name').textContent = weaponName;
-  
+
     // Update Abilities
     document.getElementById('character-skill-1').textContent = char.skill1 ? char.skill1.name : 'None';
     document.getElementById('character-skill-2').textContent = char.skill2 ? char.skill2.name : 'None';
     document.getElementById('character-passive').textContent = char.passive ? char.passive.name : 'None';
-  
+
     const weaponSelector = this.renderWeaponSelector(char);
     const container = document.getElementById('weapon-selector');
     container.innerHTML = ''; // Clear existing options
     container.appendChild(weaponSelector);
-  
+
     // Attach Level-Up Button
     const levelUpButton = document.getElementById('level-up-button');
     levelUpButton.onclick = () => {
@@ -1325,7 +1363,7 @@ const characterCollection = {
         this.renderCharacters(); // Refresh character collection
       }
     };
-  
+
     // Attach Awaken Button
     const awakenButton = document.getElementById('awaken-button');
     awakenButton.onclick = () => {
@@ -1337,40 +1375,40 @@ const characterCollection = {
       }
     };
   },
-  
-  
 
-renderWeaponSelector(character) {
-  const selector = document.createElement('select');
-  selector.appendChild(new Option('None', ''));
 
-  const compatibleWeapons = weaponManager.filterWeaponsForCharacter(character);
-  compatibleWeapons.forEach((weapon, index) => {
-    const option = document.createElement('option');
-    option.value = index;
-    const currentStats = weapon.getCurrentStats();
-    option.textContent = `${weapon.name} (Level ${weapon.level}, ATK: ${currentStats.atk})`;
 
-    if (character.weapon === weapon) {
-      option.selected = true;
-    }
-    selector.appendChild(option);
-  });
+  renderWeaponSelector(character) {
+    const selector = document.createElement('select');
+    selector.appendChild(new Option('None', ''));
 
-  selector.addEventListener('change', (e) => {
-    if (e.target.value === '') {
-      character.unequipWeapon();
-    } else {
-      const selectedIndex = parseInt(e.target.value, 10);
-      const selectedWeapon = compatibleWeapons[selectedIndex];
-      character.equipWeapon(selectedWeapon);
-    }
-    this.updateCharacterDetails();
-    this.renderCharacters(); // Refresh character details
-  });
+    const compatibleWeapons = weaponManager.filterWeaponsForCharacter(character);
+    compatibleWeapons.forEach((weapon, index) => {
+      const option = document.createElement('option');
+      option.value = index;
+      const currentStats = weapon.getCurrentStats();
+      option.textContent = `${weapon.name} (Level ${weapon.level}, ATK: ${currentStats.atk})`;
 
-  return selector;
-},
+      if (character.weapon === weapon) {
+        option.selected = true;
+      }
+      selector.appendChild(option);
+    });
+
+    selector.addEventListener('change', (e) => {
+      if (e.target.value === '') {
+        character.unequipWeapon();
+      } else {
+        const selectedIndex = parseInt(e.target.value, 10);
+        const selectedWeapon = compatibleWeapons[selectedIndex];
+        character.equipWeapon(selectedWeapon);
+      }
+      this.updateCharacterDetails();
+      this.renderCharacters(); // Refresh character details
+    });
+
+    return selector;
+  },
 
 
 
@@ -1397,9 +1435,10 @@ const autobattler = {
   enemies: [],
   currentStage: 1,
   isRunning: false,
-  isChallenging: false, 
+  isChallenging: false,
   resourceManager: new ResourceManager(),
   enemyFactory: new EnemyFactory(),
+  soulGemAccumulator: 0,
 
   initializePage() {
     document.getElementById('start-battle').addEventListener('click', () => this.toggleBattle());
@@ -1477,17 +1516,37 @@ const autobattler = {
   battleLoop() {
     if (!this.isRunning) return;
 
-    const xpGained = this.team.reduce((sum, char) => sum + char.currentStats.atk, 0) * this.currentStage;
-    const gemsGained = Math.floor(xpGained / 10) * this.currentStage;
+    // Base reward values
+    const baseXP = 10; // Base XP per second
+    const xpMultiplier = 2; // Additional XP per stage
+    const baseGems = 0.1; // Base Soul Gems per second
+    const gemsMultiplier = 0.05; // Additional Gems per stage
 
-    // Gaining resources during battle
-    resourceManager.addResource('crystallizedXP', xpGained);
-    resourceManager.addResource('soulGems', gemsGained);
-    this.logBattleAction(`Stage ${this.currentStage}: Gained ${xpGained} XP and ${gemsGained} Gems!`);
+    // Calculate rewards based on stage and scaling
+    const xpPerSecond = Math.floor(baseXP + (this.currentStage * xpMultiplier));
+    const gemsPerSecond = baseGems + (this.currentStage * gemsMultiplier);
+
+    // Accumulate Soul Gems
+    this.soulGemAccumulator += gemsPerSecond;
+    const wholeGems = Math.floor(this.soulGemAccumulator);
+    this.soulGemAccumulator -= wholeGems;
+
+    // Add rewards to resources
+    resourceManager.addResource('crystallizedXP', xpPerSecond);
+    resourceManager.addResource('soulGems', wholeGems);
+
+    // Log the action
+    this.logBattleAction(
+      `Stage ${this.currentStage}: Gained ${xpPerSecond} XP and ${wholeGems} Gems!`
+    );
+
+    // Update the UI
     this.updateResourceDisplay();
 
+    // Loop every second
     setTimeout(() => this.battleLoop(), 1000);
   },
+
 
   challengeStage() {
     if (this.isChallenging) {
@@ -1513,33 +1572,54 @@ const autobattler = {
 
   simulateBattle() {
     const allUnits = [...this.team, ...this.enemies]; // Combined turn pool
+
+    // Apply beginning of battle passives
+    allUnits.forEach(unit => {
+      if (unit.passive) {
+        // Check if the passive is triggered at the start of the battle
+        if (unit.passive.triggerTiming === "Beginning of Battle") {
+          const result = unit.passive.effect(unit, allUnits);
+          if (result && result.description) {
+            this.logBattleAction(`[Battle Start Passive] ${unit.name} triggers ${unit.passive.name}: ${result.description}`);
+          }
+        }
+      }
+    });
+
     let ongoing = true;
-  
     const turnOrder = this.determineTurnOrder(allUnits);
-  
+
     const battleInterval = setInterval(() => {
       if (!ongoing) {
         clearInterval(battleInterval);
         this.endBattle(this.enemies.every(enemy => enemy.hp <= 0)); // Victory if all enemies are defeated
         return;
       }
-  
+
       for (const unit of turnOrder) {
         if (unit.hp <= 0) continue; // Skip defeated units
-  
+
+        // Apply beginning of turn passives
+        if (unit.passive && unit.passive.triggerTiming === "Beginning of Turn") {
+          const result = unit.passive.effect(unit, allUnits);
+          if (result && result.description) {
+            this.logBattleAction(`[Turn Start Passive] ${unit.name} triggers ${unit.passive.name}: ${result.description}`);
+          }
+        }
+
         // Determine valid targets
         const targets = unit.isAlly ? this.enemies.filter(enemy => enemy.hp > 0) : this.team.filter(ally => ally.hp > 0);
         const target = this.selectTarget(targets);
-  
+
         if (!target) {
           // If no valid targets remain, end the battle
           ongoing = false;
           break;
         }
-  
+
         // Recharge energy for this unit
         unit.energy = Math.min(100, unit.energy + unit.currentStats.energyRecharge * 10);
-  
+
         // Use skill if energy is full, otherwise perform a normal attack
         let damage, actionType;
         if (unit.energy >= 100) {
@@ -1551,54 +1631,61 @@ const autobattler = {
           damage = this.calculateDamage(unit, target, unit.currentStats.atk);
           actionType = "performs a normal attack";
         }
-  
+
         // Apply damage to the target
         target.hp = Math.max(0, Math.floor(target.hp - damage) || 0);
-        
+
         // Log the action
         this.logBattleAction(
           `${unit.name} ${actionType} on ${target.name}, dealing ${Math.floor(damage)} damage.`
         );
-  
+
         if (target.hp <= 0) {
           this.logBattleAction(`${target.name} has been defeated.`);
         }
-  
+
         // Check for end of battle
         if (this.team.every(ally => ally.hp <= 0) || this.enemies.every(enemy => enemy.hp <= 0)) {
           ongoing = false;
           break;
         }
       }
-  
+
       // Update the battleground after each turn
       this.renderBattleground();
     }, 1000);
   },
 
   determineTurnOrder(units) {
-    console.log([...units].sort((a, b) => b.currentStats.speed - a.currentStats.speed));
     return [...units].sort((a, b) => b.currentStats.speed - a.currentStats.speed);
   },
 
   calculateDamage(attacker, target, baseDamage) {
     let damage = baseDamage * (1 - target.currentStats.def / 1000);
-  
+
     // Apply elemental advantage multiplier
     if (attacker.element === elementalWheel.getWeakness(target.element)) {
       damage *= 1.5;
     }
-  
+
     // Determine if the attack is a critical hit
     const isCritical = Math.random() * 100 < attacker.currentStats.critChance;
     if (isCritical) {
       damage *= attacker.currentStats.critDamage;
       this.logBattleAction(`${attacker.name} lands a CRITICAL HIT!`);
     }
-  
+
+    // Check for passive damage reduction (e.g., Iron Will)
+    if (target.passive && target.passive.name === "Iron Will") {
+      damage *= 0.95; // Reduce damage by 5%
+      this.logBattleAction(`[Passive] ${target.name}'s Iron Will reduces damage.`);
+    }
+
     return damage;
   },
-  
+
+
+
 
   selectTarget(targets) {
     const validTargets = targets.filter(target => target.hp > 0); // Only select alive targets
@@ -1610,18 +1697,18 @@ const autobattler = {
     const availableSkills = [];
     if (unit.skill1) availableSkills.push(unit.skill1);
     if (unit.skill2) availableSkills.push(unit.skill2);
-  
+
     // Select a random skill if available
     if (availableSkills.length > 0) {
       return availableSkills[Math.floor(Math.random() * availableSkills.length)];
     }
-  
+
     // Default fallback: return a basic attack if no skills are set
     return {
       name: "Basic Attack",
       damage: unit.currentStats.atk
     };
-  }, 
+  },
 
   endBattle(victory) {
     if (victory) {
@@ -1638,7 +1725,7 @@ const autobattler = {
     document.getElementById('resource-xp').textContent = resourceManager.getResourceAmount('crystallizedXP');
     document.getElementById('resource-gems').textContent = resourceManager.getResourceAmount('soulGems');
   },
-  
+
 
   updateStageDisplay() {
     const stage = document.getElementById('current-stage');
@@ -1696,7 +1783,7 @@ const autobattler = {
       </div>
     `).join('');
   },
-  
+
   renderBattleUI() {
     const allyStats = document.getElementById('ally-stats');
     const enemyStats = document.getElementById('enemy-stats');
@@ -1710,26 +1797,26 @@ const autobattler = {
     // Find the token for the given unit
     const token = document.querySelector(`.character-token.${className}[data-name="${unit.name}"]`);
     if (!token) return; // If the token isn't found, skip
-  
+
     // Update HP bar
     const hpBar = token.querySelector('.token-hp-bar');
     if (hpBar) {
       hpBar.style.width = `${(unit.hp / unit.maxHp) * 100}%`;
     }
-  
+
     // Update Energy bar
     const energyBar = token.querySelector('.token-energy-bar');
     if (energyBar) {
       energyBar.style.width = `${Math.min(unit.energy, 100)}%`;
     }
-  
+
     // Update text for HP and Energy
     const tokenInfo = token.querySelector('.token-info');
     if (tokenInfo) {
       tokenInfo.querySelector('p:nth-child(2)').textContent = `HP: ${Math.floor(unit.hp)}/${Math.floor(unit.maxHp)}`;
       tokenInfo.querySelector('p:nth-child(3)').textContent = `Energy: ${Math.floor(unit.energy)}%`;
     }
-  
+
     // Handle alive vs dead state for the image
     const image = token.querySelector('.character-image');
     if (image) {
@@ -1773,18 +1860,18 @@ const weaponManagement = {
   selectedWeapon: null,
   sortField: 'name',
   sortAscending: true,
-  
+
   initializeSortControls() {
     const sortFieldSelect = document.getElementById('weapon-sort-select');
     const sortOrderButton = document.getElementById('sort-order-btn');
-  
+
     // Handle field change
     sortFieldSelect.addEventListener('change', (e) => {
       this.sortField = e.target.value; // Update sort field
       console.log(`[DEBUG] Sort field changed to: ${this.sortField}`);
       this.renderWeaponList(); // Re-render the list
     });
-  
+
     // Handle order toggle
     sortOrderButton.addEventListener('click', () => {
       this.sortAscending = !this.sortAscending; // Toggle sort order
@@ -1805,14 +1892,14 @@ const weaponManagement = {
       console.error('[DEBUG] Weapon list container not found.');
       return;
     }
-  
+
     // Clear existing weapon list
     weaponList.innerHTML = '';
-  
+
     // Sort weapons based on the selected field and order
     const sortedWeapons = [...weaponManager.weapons].sort((a, b) => {
       let fieldA, fieldB;
-  
+
       // Use getCurrentStats for ATK comparison
       if (this.sortField === 'atk') {
         fieldA = a.getCurrentStats().atk;
@@ -1821,27 +1908,27 @@ const weaponManagement = {
         fieldA = a[this.sortField];
         fieldB = b[this.sortField];
       }
-  
+
       if (typeof fieldA === 'string' && typeof fieldB === 'string') {
         return this.sortAscending
           ? fieldA.localeCompare(fieldB)
           : fieldB.localeCompare(fieldA);
       }
-  
+
       if (typeof fieldA === 'number' && typeof fieldB === 'number') {
         return this.sortAscending ? fieldA - fieldB : fieldB - fieldA;
       }
-  
+
       return 0; // Default case for non-sortable fields
     });
-  
+
     console.log(`[DEBUG] Weapons sorted by: ${this.sortField}, Order: ${this.sortAscending ? 'Ascending' : 'Descending'}`);
-  
+
     // Render sorted weapons
     sortedWeapons.forEach(weapon => {
       const weaponCard = document.createElement('div');
       weaponCard.className = `weapon-card ${weapon === this.selectedWeapon ? 'selected' : ''}`;
-  
+
       const currentStats = weapon.getCurrentStats();
       weaponCard.innerHTML = `
         <img src="images/weapons/${weapon.name.toLowerCase().replace(/\s+/g, '_')}.png" 
@@ -1855,10 +1942,10 @@ const weaponManagement = {
           ${weapon.equippedBy ? `<p>Equipped by: ${weapon.equippedBy.name}</p>` : ''}
         </div>
       `;
-  
+
       // Add click event to select the weapon
       weaponCard.addEventListener('click', () => this.selectWeapon(weapon));
-  
+
       weaponList.appendChild(weaponCard);
     });
   },
@@ -1937,11 +2024,11 @@ const weaponManagement = {
             this.renderWeaponList();
             this.renderWeaponDetails();
 
-                    // Refresh character collection UI
-        if (this.selectedWeapon.equippedBy) {
-          characterCollection.updateCharacterDetails();
-          console.log('[DEBUG] Character collection updated after weapon enhancement.');
-        }
+            // Refresh character collection UI
+            if (this.selectedWeapon.equippedBy) {
+              characterCollection.updateCharacterDetails();
+              console.log('[DEBUG] Character collection updated after weapon enhancement.');
+            }
           }
         }
       });
@@ -1980,11 +2067,11 @@ const weaponManagement = {
       detailsContainer.innerHTML = '<p>Select a weapon to view details</p>';
       return;
     }
-  
+
     const weapon = this.selectedWeapon;
     const currentStats = weapon.getCurrentStats();
     const statRanges = weapon.getStatRanges();
-  
+
     detailsContainer.innerHTML = `
       <div class="weapon-detail-header">
         <img src="images/weapons/${weapon.name.toLowerCase().replace(/\s+/g, '_')}.png" alt="${weapon.name}" onerror="this.src='images/weapons/WP_default.png'" class="weapon-detail-image">
@@ -2011,11 +2098,11 @@ const weaponManagement = {
         <button id="auto-enhance-btn">Auto Enhance</button>
       </div>
     `;
-  
+
     this.populateSacrificeWeapons();
     this.attachDetailButtonListeners();
   },
-  
+
 
   setupAutoEnhance: function () {
     // Create the modal if it doesn't exist
@@ -2110,14 +2197,18 @@ const weaponManagement = {
 
 function updateBannerInfo() {
   const bannerTitle = document.getElementById('banner-title');
-  const bannerArt = document.getElementById('banner-art');
+  const bannerArt = document.getElementById('gacha-banner-image');
   const featuredItems = document.getElementById('featured-items');
-  const bannerTimer = document.getElementById('timer');
+  const bannerTimer = document.getElementById('banner-time-remaining');
 
-  
   if (!gacha.currentBanner) {
-    console.warn('[DEBUG] No active banner found.');
-    return;
+    console.warn('[DEBUG] No active banner found. Defaulting to "Standard Wish".');
+    gacha.currentBanner = gacha.banners.find(banner => banner.name === "Standard Wish");
+
+    if (!gacha.currentBanner) {
+      console.error('[DEBUG] "Standard Wish" banner not found.');
+      return;
+    }
   }
 
   // Check for null elements
@@ -2129,23 +2220,46 @@ function updateBannerInfo() {
   // Update elements with current banner info
   bannerTitle.textContent = gacha.currentBanner.name;
   bannerArt.style.backgroundImage = `url('images/banners/${gacha.currentBanner.name.toLowerCase().replace(/\s+/g, '_')}.jpg')`;
-  featuredItems.textContent = `Featured 5★: ${gacha.currentBanner.featured5Star}, 4★: ${gacha.currentBanner.featured4Stars.join(', ')}`;
 
-  // Timer logic
-  const now = Date.now();
-  const endTime = gacha.currentBanner.startTime + gacha.currentBanner.duration;
+  // Dynamically populate featured items
+  const { featured5Star, featured4Stars } = gacha.currentBanner;
+  featuredItems.innerHTML = `
+      <p>Featured 5★: ${featured5Star}</p>
+      <p>Featured 4★: ${featured4Stars.join(', ')}</p>
+  `;
 
-  if (now > endTime) {
-    bannerTimer.textContent = "Expired";
-    console.warn('[DEBUG] Current banner has expired.');
-  } else {
+  // Clear any previous interval and start a new one
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  function updateCountdown() {
+    const now = Date.now();
+    const endTime = gacha.currentBanner.startTime + gacha.currentBanner.duration;
+
+    if (!gacha.currentBanner.duration || gacha.currentBanner.duration === Infinity) {
+      bannerTimer.textContent = 'Infinite time remaining';
+      return;
+    }
+
     const remainingTime = endTime - now;
+    if (remainingTime <= 0) {
+      bannerTimer.textContent = 'Expired';
+      clearInterval(countdownInterval);
+      return;
+    }
+
+    const days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
     const hours = Math.floor((remainingTime / (1000 * 60 * 60)) % 24);
     const minutes = Math.floor((remainingTime / (1000 * 60)) % 60);
     const seconds = Math.floor((remainingTime / 1000) % 60);
-    bannerTimer.textContent = `${hours}h ${minutes}m ${seconds}s`;
+
+    bannerTimer.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s remaining`;
   }
+
+  // Initial update and interval setup
+  updateCountdown();
+  countdownInterval = setInterval(updateCountdown, 1000);
 }
+
 
 // Upcoming Banners
 function renderBanners() {
@@ -2157,8 +2271,11 @@ function renderBanners() {
 
   const now = Date.now();
 
+  console.log(gacha.banners);
+
   // Render Available Banners
   gacha.banners.forEach(banner => {
+
     if (banner.isActive()) {
       const timeRemaining = calculateTimeRemaining(banner);
       const bannerDiv = document.createElement('div');
@@ -2176,6 +2293,8 @@ function renderBanners() {
       });
 
       availableContainer.appendChild(bannerDiv);
+
+      console.log('[DEBUG] Banner HTML:', bannerDiv.outerHTML);
     }
   });
 
@@ -2225,9 +2344,9 @@ function calculateTimeRemaining(banner) {
 
 function switchBanner(banner) {
   const bannerTitle = document.getElementById('banner-title');
-  const bannerImage = document.getElementById('gacha-banner-image');
-  const featured5Star = document.getElementById('featured-5-star');
-  const bannerTimeRemaining = document.getElementById('banner-time-remaining');
+  const bannerImage = document.getElementById('gacha-banner-image'); // Updated to match "banner-art"
+  const featuredItems = document.getElementById('featured-items'); // Updated to use "featured-items"
+  const bannerTimeRemaining = document.getElementById('banner-time-remaining'); // Updated to use "timer"
 
   gacha.currentBanner = banner;
 
@@ -2237,7 +2356,14 @@ function switchBanner(banner) {
 
   // Update banner details
   bannerTitle.textContent = banner.name;
-  featured5Star.textContent = `Featured 5★: ${banner.featured5Star}`;
+
+  // Update featured items
+  if (featuredItems) {
+    featuredItems.innerHTML = `
+      <p>Featured 5★: ${banner.featured5Star}</p>
+      <p>Featured 4★: ${banner.featured4Stars.join(', ')}</p>
+    `;
+  }
 
   // Stop any existing countdown
   if (countdownInterval) clearInterval(countdownInterval);
@@ -2245,9 +2371,9 @@ function switchBanner(banner) {
   // Start a new countdown
   function updateCountdown() {
     const now = Date.now();
-    const endTime = banner.startTime + banner.duration;
+    const endTime = gacha.currentBanner.startTime + gacha.currentBanner.duration;
 
-    if (!banner.duration || banner.duration === Infinity) {
+    if (!gacha.currentBanner.duration || gacha.currentBanner.duration === Infinity) {
       bannerTimeRemaining.textContent = 'Infinite time remaining';
       return;
     }
@@ -2268,9 +2394,11 @@ function switchBanner(banner) {
     bannerTimeRemaining.textContent = `${days}d ${hours}h ${minutes}m ${seconds}s remaining`;
   }
 
+
   updateCountdown(); // Initial call
   countdownInterval = setInterval(updateCountdown, 1000); // Update every second
 }
+
 
 function getUpcomingBanners() {
   const now = Date.now();
@@ -2450,9 +2578,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function defineAbilities(characterManager) {
   const abilities = [
+    // Offensive Abilities
     {
       name: "Fireball",
       description: "Deals fire damage to a single enemy",
+      triggerTiming: "On Use",
       effect: (caster, targets) => {
         const target = targets.find(t => !t.isAlly);
         if (!target) return { abilityName: "Fireball", damage: 0, description: "No enemy to target" };
@@ -2463,8 +2593,76 @@ function defineAbilities(characterManager) {
       cooldown: 3
     },
     {
+      name: "Power Strike",
+      description: "Deals 150% ATK as damage to a single enemy.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Power Strike", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk * 1.5;
+        target.hp -= damage;
+        return { abilityName: "Power Strike", damage, description: `Dealt ${damage} damage to ${target.name}` };
+      },
+      cooldown: 2
+    },
+    {
+      name: "Whirlwind Slash",
+      description: "Deals 120% ATK as AoE damage to all enemies.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const enemies = targets.filter(t => !t.isAlly);
+        const damage = caster.currentStats.atk * 1.2;
+        enemies.forEach(enemy => enemy.hp -= damage);
+        return { abilityName: "Whirlwind Slash", damage, description: `Dealt ${damage} AoE damage to all enemies.` };
+      },
+      cooldown: 3
+    },
+    {
+      name: "Piercing Thrust",
+      description: "Deals 180% ATK as damage to a single enemy and ignores 25% of DEF.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Piercing Thrust", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk * 1.8 * (1 - (target.currentStats.def * 0.75) / 100);
+        target.hp -= damage;
+        return { abilityName: "Piercing Thrust", damage, description: `Dealt ${damage} damage (ignores 25% DEF) to ${target.name}` };
+      },
+      cooldown: 4
+    },
+
+    // Defensive Abilities
+    {
+      name: "Shield Bash",
+      description: "Deals 100% ATK as damage and reduces target's ATK by 20% for 2 turns.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Shield Bash", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk;
+        target.hp -= damage;
+        target.atkReduction = 0.8;
+        return { abilityName: "Shield Bash", damage, description: `Dealt ${damage} damage and reduced ${target.name}'s ATK by 20%` };
+      },
+      cooldown: 3
+    },
+    {
+      name: "Fortify",
+      description: "Increases DEF of all allies by 30% for 2 turns.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.currentStats.def *= 1.3);
+        return { abilityName: "Fortify", damage: 0, description: "Increased DEF of all allies by 30% for 2 turns" };
+      },
+      cooldown: 4
+    },
+
+    // Support Abilities
+    {
       name: "Heal",
       description: "Restores HP to the lowest health ally",
+      triggerTiming: "On Use",
       effect: (caster, targets) => {
         const allies = targets.filter(char => char.isAlly);
         if (allies.length === 0) return { abilityName: "Heal", damage: 0, description: "No allies to heal" };
@@ -2476,21 +2674,337 @@ function defineAbilities(characterManager) {
       cooldown: 4
     },
     {
+      name: "Healing Light",
+      description: "Restores 15% of max HP to all allies.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.hp = Math.min(ally.maxHp, ally.hp + ally.maxHp * 0.15));
+        return { abilityName: "Healing Light", damage: 0, description: "Restored 15% of max HP to all allies." };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Battle Cry",
+      description: "Increases ATK of all allies by 20% for 3 turns.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.currentStats.atk *= 1.2);
+        return { abilityName: "Battle Cry", damage: 0, description: "Increased ATK of all allies by 20% for 3 turns." };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Quick Step",
+      description: "Increases Speed of all allies by 15% for 2 turns.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.currentStats.speed *= 1.15);
+        return { abilityName: "Quick Step", damage: 0, description: "Increased Speed of all allies by 15% for 2 turns." };
+      },
+      cooldown: 3
+    },
+
+    // Utility Abilities
+    {
+      name: "Energy Burst",
+      description: "Restores 10% energy to all allies.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.energy = Math.min(100, ally.energy + 10));
+        return { abilityName: "Energy Burst", damage: 0, description: "Restored 10% energy to all allies." };
+      },
+      cooldown: 5
+    },
+    {
+      name: "Blindside",
+      description: "Reduces an enemy's Crit Rate by 20% for 2 turns.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Blindside", damage: 0, description: "No enemy to target" };
+        target.critRateReduction = 0.8;
+        return { abilityName: "Blindside", damage: 0, description: `Reduced ${target.name}'s Crit Rate by 20% for 2 turns.` };
+      },
+      cooldown: 3
+    },
+
+    // Passive Abilities
+    {
       name: "FireResistance",
       description: "Passive: Increases fire resistance",
+      triggerTiming: "Beginning of Battle",
       effect: (caster) => {
         caster.fireResistance = (caster.fireResistance || 0) + 20;
         return { abilityName: "FireResistance", description: "Fire resistance increased by 20%" };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Critical Edge",
+      description: "Increases Crit Rate by 10%.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster) => {
+        caster.currentStats.critChance += 10;
+        return { abilityName: "Critical Edge", description: "Crit Rate increased by 10%." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Swift Footed",
+      description: "Increases Speed by 10.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster) => {
+        caster.currentStats.speed += 10;
+        return { abilityName: "Swift Footed", description: "Speed increased by 10." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Iron Will",
+      description: "Reduces incoming damage by 5%.",
+      triggerTiming: "During Damage Calculation",
+      effect: (caster) => {
+        caster.damageReduction = (caster.damageReduction || 0) + 0.05;
+        return { abilityName: "Iron Will", description: "Damage reduction increased by 5%." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Battle Hardened",
+      description: "Increases ATK by 5% for every 10% HP lost.",
+      triggerTiming: "Beginning of Turn",
+      effect: (caster) => {
+        const hpLostPercentage = ((caster.maxHp - caster.hp) / caster.maxHp) * 100;
+        const baseAtk = caster.currentStats.baseAtk || caster.currentStats.atk; // Include equipment and levels
+        const atkBoost = Math.floor(hpLostPercentage / 10) * 0.05;
+        caster.currentStats.atk = baseAtk * (1 + atkBoost);
+        console.log(atkBoost);
+        console.log(baseAtk);
+        console.log(caster.currentStats.atk);
+        return { abilityName: "Battle Hardened", description: `ATK increased by ${atkBoost * 100}% based on HP lost.` };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Mana Conduit",
+      description: "Increases Energy recharge rate by 10%.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster) => {
+        caster.currentStats.energyRecharge += 0.1;
+        return { abilityName: "Mana Conduit", description: "Energy recharge rate increased by 10%." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Team Spirit",
+      description: "Grants a 5% ATK boost to all allies.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => {
+          ally.currentStats.atk *= 1.05;
+        });
+        return { abilityName: "Team Spirit", description: "All allies gained a 5% ATK boost." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Precision Strike",
+      description: "Increases accuracy by 10%.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster) => {
+        caster.accuracy = (caster.accuracy || 0) + 10;
+        return { abilityName: "Precision Strike", description: "Accuracy increased by 10%." };
+      },
+      cooldown: 0
+    },
+    {
+      name: "Enduring Soul",
+      description: "Heals 5% of max HP at the start of each turn.",
+      triggerTiming: "Beginning of Turn",
+      effect: (caster) => {
+        const healAmount = Math.floor(caster.maxHp * 0.05);
+        caster.hp = Math.min(caster.maxHp, caster.hp + healAmount);
+        return { abilityName: "Enduring Soul", description: `Restored ${healAmount} HP at the start of the turn.` };
+      },
+      cooldown: 0
+    },
+
+        // Joker Abilities
+    {
+      name: "Arsène's Strike",
+      description: "Dark damage with increased crit rate.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Arsène's Strike", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk * 1.5;
+        const isCritical = Math.random() * 100 < caster.currentStats.critChance + 20; // Increased crit chance
+        const finalDamage = isCritical ? damage * caster.currentStats.critDamage : damage;
+        target.hp -= finalDamage;
+        return {
+          abilityName: "Arsène's Strike",
+          damage: finalDamage,
+          description: `Dealt ${finalDamage} Dark damage${isCritical ? " (CRITICAL)" : ""} to ${target.name}`
+        };
+      },
+      cooldown: 3
+    },
+    {
+      name: "All-Out Attack",
+      description: "AOE Dark damage.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const enemies = targets.filter(t => !t.isAlly);
+        const damage = caster.currentStats.atk * 1.2;
+        enemies.forEach(enemy => enemy.hp -= damage);
+        return {
+          abilityName: "All-Out Attack",
+          damage,
+          description: `Dealt ${damage} AOE Dark damage to all enemies.`
+        };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Wild Card",
+      description: "Can adapt to any element during combat.",
+      triggerTiming: "Beginning of Turn",
+      effect: (caster) => {
+        const elements = ["Fire", "Water", "Wind", "Earth", "Light", "Dark"];
+        caster.currentStats.element = elements[Math.floor(Math.random() * elements.length)];
+        return {
+          abilityName: "Wild Card",
+          description: `Adapted to the ${caster.currentStats.element} element.`
+        };
+      },
+      cooldown: 0
+    },
+
+    // Kaladin Stormblessed Abilities
+    {
+      name: "Windrunner's Leap",
+      description: "Deals Wind damage and increases evasion.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Windrunner's Leap", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk * 1.3;
+        target.hp -= damage;
+        caster.currentStats.evasion += 15; // Increase evasion
+        return {
+          abilityName: "Windrunner's Leap",
+          damage,
+          description: `Dealt ${damage} Wind damage to ${target.name} and increased evasion by 15%.`
+        };
+      },
+      cooldown: 3
+    },
+    {
+      name: "Highstorm",
+      description: "AOE Wind damage and reduces enemy speed.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const enemies = targets.filter(t => !t.isAlly);
+        const damage = caster.currentStats.atk * 1.2;
+        enemies.forEach(enemy => {
+          enemy.hp -= damage;
+          enemy.currentStats.speed *= 0.9; // Reduce speed by 10%
+        });
+        return {
+          abilityName: "Highstorm",
+          damage,
+          description: `Dealt ${damage} AOE Wind damage and reduced enemy speed by 10%.`
+        };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Bridge Four Bond",
+      description: "Increases team DEF by 10%.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster, targets) => {
+        const allies = targets.filter(t => t.isAlly);
+        allies.forEach(ally => ally.currentStats.def *= 1.1);
+        return {
+          abilityName: "Bridge Four Bond",
+          description: "Increased team DEF by 10%."
+        };
+      },
+      cooldown: 0
+    },
+
+    // Percy Jackson Abilities
+    {
+      name: "Riptide Slash",
+      description: "Deals heavy Water damage to one enemy.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const target = targets.find(t => !t.isAlly);
+        if (!target) return { abilityName: "Riptide Slash", damage: 0, description: "No enemy to target" };
+        const damage = caster.currentStats.atk * 2.0;
+        target.hp -= damage;
+        return {
+          abilityName: "Riptide Slash",
+          damage,
+          description: `Dealt ${damage} heavy Water damage to ${target.name}.`
+        };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Ocean’s Fury",
+      description: "AOE Water attack with a chance to inflict Wet.",
+      triggerTiming: "On Use",
+      effect: (caster, targets) => {
+        const enemies = targets.filter(t => !t.isAlly);
+        const damage = caster.currentStats.atk * 1.2;
+        enemies.forEach(enemy => {
+          enemy.hp -= damage;
+          if (Math.random() < 0.3) { // 30% chance to inflict Wet
+            enemy.statusEffects.push("Wet");
+          }
+        });
+        return {
+          abilityName: "Ocean’s Fury",
+          damage,
+          description: `Dealt ${damage} AOE Water damage with a chance to inflict Wet.`
+        };
+      },
+      cooldown: 4
+    },
+    {
+      name: "Son of Poseidon",
+      description: "Increases Water damage by 15%.",
+      triggerTiming: "Beginning of Battle",
+      effect: (caster) => {
+        caster.currentStats.waterDamageMultiplier = (caster.currentStats.waterDamageMultiplier || 1) * 1.15;
+        return {
+          abilityName: "Son of Poseidon",
+          description: "Increased Water damage by 15%."
+        };
       },
       cooldown: 0
     }
   ];
 
   abilities.forEach(abilityData => {
-    const ability = new Ability(abilityData.name, abilityData.description, abilityData.effect, abilityData.cooldown);
+    const ability = new Ability(
+      abilityData.name,
+      abilityData.description,
+      abilityData.effect,
+      abilityData.cooldown,
+      abilityData.triggerTiming // Pass the triggerTiming property
+    );
     characterManager.defineAbility(abilityData.name, ability);
   });
+
 }
+
 
 function defineCharactersFromData() {
   if (!gameData.characters) return;
@@ -2514,20 +3028,35 @@ function initializeBannersFromData() {
   if (!gameData.banners) return;
 
   gameData.banners.forEach(bannerData => {
-    const startTime = bannerData.startTime === "Infinity" 
-      ? Infinity 
-      : new Date(bannerData.startTime).getTime();
+    console.log('[DEBUG] Banner being initialized:', bannerData);
+
+    // Convert 0 duration to Infinity
+    const duration = bannerData.duration === 0 ? Infinity : parseInt(bannerData.duration, 10);
+
+    // Convert startTime to a valid timestamp
+    const startTime = new Date(bannerData.startTime).getTime();
+
+    // Log debugging information about conversions
+    console.log(`[DEBUG] Converted banner "${bannerData.name}" startTime: ${startTime}, duration: ${duration}`);
 
     const banner = new Banner(
       bannerData.name,
       bannerData.featured5Star,
       bannerData.featured4Stars,
-      bannerData.duration,
+      duration,
       startTime
     );
 
     gacha.addBanner(banner);
   });
+
+
+  if (!gacha.currentBanner) {
+    console.warn("[DEBUG] No banner set. Defaulting to 'Standard Wish'.");
+    gacha.currentBanner = gacha.banners.find(b => b.name === "Standard Wish");
+  }
+
+  console.log('[DEBUG] Banners ready for rendering:', gacha.banners);
 
   console.log('[DEBUG] Banners initialized from game data.');
 }
@@ -2541,39 +3070,39 @@ function displayResults(results) {
   const rows = resultContainer.getElementsByClassName('row');
 
   if (!Array.isArray(results) || results.length === 0) {
-      console.log("No results to display");
-      resultContainer.innerHTML = '<p>No results to display.</p>';
-      isAnimating = false;
-      return;
+    console.log("No results to display");
+    resultContainer.innerHTML = '<p>No results to display.</p>';
+    isAnimating = false;
+    return;
   }
 
   results.forEach((result, index) => {
-      setTimeout(() => {
-          const cardDiv = document.createElement('div');
-          cardDiv.className = `card ${result.rarity}`;
-          cardDiv.innerHTML = `
+    setTimeout(() => {
+      const cardDiv = document.createElement('div');
+      cardDiv.className = `card ${result.rarity}`;
+      cardDiv.innerHTML = `
               <img src="images/${result.type}/${result.name.toLowerCase().replace(/\s+/g, '_')}.png" alt="${result.name}">
               <p>${result.name}</p>
           `;
 
-          rows[Math.floor(index / 5)].appendChild(cardDiv);
+      rows[Math.floor(index / 5)].appendChild(cardDiv);
 
-          // Apply shake animation to all cards
-          cardDiv.classList.add('shake');
-          setTimeout(() => cardDiv.classList.remove('shake'), 500);
+      // Apply shake animation to all cards
+      cardDiv.classList.add('shake');
+      setTimeout(() => cardDiv.classList.remove('shake'), 500);
 
-          if (result.rarity === '5-star') {
-              // Special glow effect for 5-star cards
-              cardDiv.classList.add('five-star-glow');
-              setTimeout(() => cardDiv.classList.remove('five-star-glow'), 2000);
-          }
+      if (result.rarity === '5-star') {
+        // Special glow effect for 5-star cards
+        cardDiv.classList.add('five-star-glow');
+        setTimeout(() => cardDiv.classList.remove('five-star-glow'), 2000);
+      }
 
-          if (index === results.length - 1) {
-              document.getElementById('pity-counter').textContent = `Pity Counter: ${gacha.pityCounter}`;
-              isAnimating = false;
-              characterCollection.renderCharacters();
-          }
-      }, index * 300);
+      if (index === results.length - 1) {
+        document.getElementById('pity-counter').textContent = `Pity Counter: ${gacha.pityCounter}`;
+        isAnimating = false;
+        characterCollection.renderCharacters();
+      }
+    }, index * 300);
   });
 }
 
@@ -2589,25 +3118,267 @@ window.addEventListener('click', (event) => {
   }
 });
 
+// Open and Close Settings Modal
+const settingsButton = document.getElementById('settings-button');
+const settingsModal = document.getElementById('settings-modal');
+const closeSettingsModal = document.getElementById('close-settings-modal');
+
+settingsButton.addEventListener('click', () => {
+  settingsModal.style.display = 'block';
+});
+
+closeSettingsModal.addEventListener('click', () => {
+  settingsModal.style.display = 'none';
+});
+
+window.addEventListener('click', (event) => {
+  if (event.target === settingsModal) {
+    settingsModal.style.display = 'none';
+  }
+});
+
+// Save Progress
+document.getElementById('save-progress').addEventListener('click', () => {
+  autosave();
+});
+
+// Export Progress
+document.getElementById('export-progress').addEventListener('click', () => {
+  const progress = localStorage.getItem('gameProgress');
+  if (progress) {
+    const blob = new Blob([progress], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'game_progress.json';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    alert('Progress Exported!');
+  } else {
+    alert('No progress found to export!');
+  }
+});
+
+// Import Progress
+document.getElementById('import-progress').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'application/json';
+  input.addEventListener('change', (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const importedProgress = JSON.parse(e.target.result);
+        if (importedProgress) {
+          localStorage.setItem('gameProgress', e.target.result);
+          alert('Progress Imported!');
+          location.reload(); // Reload the page to apply the imported progress
+        }
+      } catch (error) {
+        alert('Failed to import progress. Invalid file format.');
+      }
+    };
+    reader.readAsText(file);
+  });
+  input.click();
+});
+
+// Hard Reset
+document.getElementById('hard-reset').addEventListener('click', () => {
+  if (confirm('Are you sure you want to reset all progress? This cannot be undone.')) {
+    localStorage.clear();
+    location.reload(); // Reload the page to reset the game
+  }
+});
+
+function loadSavedProgress() {
+  const savedProgress = JSON.parse(localStorage.getItem('gameProgress'));
+
+  if (savedProgress) {
+    // Load Characters
+    for (const [name, charData] of Object.entries(savedProgress.characters)) {
+      const charDef = characterManager.characterDefinitions[name];
+
+      if (!charDef) {
+        console.warn(`[DEBUG] Character definition not found for: ${name}`);
+        continue;
+      }
+
+      // Create the character object from saved data
+      const character = new Character(
+        charData.name,
+        charDef.baseRarity,
+        charDef.element,
+        charDef.assignedWeaponClass
+      );
+
+      // Restore basic properties
+      character.uuid = charData.uuid;
+      character.level = charData.level;
+      character.hp = charData.hp;
+      character.maxHp = charData.maxHp;
+      character.baseStats = charData.baseStats;
+      character.currentStats = charData.currentStats;
+      character.weaponUUID = charData.weaponUUID; // Temporarily store weapon UUID
+
+      // Reinitialize skills and passive
+      character.setSkills(
+        characterManager.abilities[charDef.skill1Name],
+        characterManager.abilities[charDef.skill2Name],
+        characterManager.abilities[charDef.passiveName]
+      );
+
+      // Recalculate growth rates
+      character.growthRate = character.getGrowthRates();
+
+      // Add character to manager
+      characterManager.ownedCharacters[name] = character;
+    }
+
+    // Load Weapons
+    for (const weaponData of savedProgress.weapons) {
+      // Validate essential properties
+      if (!weaponData.name || !weaponData.type || !weaponData.rarity) {
+        console.warn(`[DEBUG] Skipping invalid weapon data:`, weaponData);
+        continue; // Skip invalid entries
+      }
+
+      const weapon = new Weapon(
+        weaponData.name,
+        weaponData.rarity,
+        weaponData.baseStats || { atk: 0, def: 0 },
+        weaponData.type
+      );
+
+      // Restore additional properties
+      weapon.uuid = weaponData.uuid || uuidv4();
+      weapon.level = weaponData.level || 1;
+      weapon.enhancementXP = weaponData.enhancementXP || 0;
+      weapon.xpToNextLevel = weaponData.xpToNextLevel || weapon.calculateXPRequired(); // Restore or recalculate
+      weapon.locked = !!weaponData.locked;
+      weapon.awakened = !!weaponData.awakened;
+      weapon.equippedByUUID = weaponData.equippedByUUID || null;
+
+      weaponManager.addWeapon(weapon);
+    }
+
+
+
+
+    // Restore Relationships
+    Object.values(characterManager.ownedCharacters).forEach((character) => {
+      if (character.weaponUUID) {
+        const weapon = weaponManager.weapons.find(w => w.uuid === character.weaponUUID);
+        if (weapon) {
+          character.weapon = weapon;
+          weapon.equippedBy = character;
+        }
+      }
+      character.updateStats(); // Recalculate stats with weapon bonuses
+    });
+
+    weaponManager.weapons.forEach((weapon) => {
+      if (weapon.equippedByUUID) {
+        const character = Object.values(characterManager.ownedCharacters).find(c => c.uuid === weapon.equippedByUUID);
+        if (character) {
+          weapon.equippedBy = character;
+          character.weapon = weapon;
+        }
+      }
+    });
+
+    // Load Resources
+    if (savedProgress.resources) {
+      resourceManager.resources = new Map(Object.entries(savedProgress.resources));
+      resourceManager.updateResourceDisplay(); // Update UI if necessary
+    } else {
+      console.warn('[DEBUG] No resources found in saved progress.');
+    }
+
+    // Restore Gacha State
+    gacha.pityCounter = savedProgress.pityCounter || 0;
+    gacha.fourStarPityCounter = savedProgress.fourStarPityCounter || 0;
+
+    // Restore Autobattler State
+    if (savedProgress.autobattlerState) {
+      autobattler.currentStage = savedProgress.autobattlerState.currentStage || 1;
+      autobattler.team = savedProgress.autobattlerState.teamUUIDs.map(uuid =>
+        characterManager.getOwnedCharacterByUUID(uuid)
+      ).filter(char => char); // Filter out invalid characters
+    }
+
+    // Update UI
+    autobattler.updateTeamDisplay();
+    autobattler.updateStageDisplay();
+    characterCollection.renderCharacters(); // Refresh character collection
+    resourceManager.updateResourceDisplay(); // Update resource display
+
+    console.log("Progress loaded successfully!");
+  } else {
+    console.log("No saved progress found.");
+  }
+}
+
+
+
+function autosave() {
+  const progress = {
+    characters: Object.entries(characterManager.ownedCharacters).reduce((acc, [name, char]) => {
+      acc[name] = {
+        uuid: char.uuid,
+        name: char.name,
+        level: char.level,
+        weaponUUID: char.weapon ? char.weapon.uuid : null, // Save equipped weapon UUID
+        currentStats: char.currentStats, // Save stats
+        baseStats: char.baseStats, // Save base stats
+        hp: char.hp,
+        maxHp: char.maxHp,
+      };
+      return acc;
+    }, {}),
+    weapons: weaponManager.weapons.map(weapon => ({
+      uuid: weapon.uuid,
+      name: weapon.name,
+      rarity: weapon.rarity,
+      type: weapon.type,
+      baseStats: weapon.baseStats,
+      level: weapon.level,
+      maxLevel: weapon.getMaxLevel(), // Derive max level from rarity
+      enhancementXP: weapon.enhancementXP,
+      locked: weapon.locked,
+      awakened: weapon.awakened,
+      equippedByUUID: weapon.equippedBy ? weapon.equippedBy.uuid : null // Save equipped character UUID
+    })),
+    resources: Object.fromEntries(resourceManager.resources),
+    pityCounter: gacha.pityCounter,
+    fourStarPityCounter: gacha.fourStarPityCounter,
+    autobattlerState: {
+      currentStage: autobattler.currentStage,
+      teamUUIDs: autobattler.team.map(char => char.uuid),
+    }
+  };
+
+  localStorage.setItem('gameProgress', JSON.stringify(progress));
+  console.log("Progress saved:", progress);
+}
+
+
+
 function initializeGameFromData() {
   defineCharactersFromData();
   initializeBannersFromData();
   updateBannerInfo();
+  renderBanners();
 }
 
 function initializeApp() {
   loadGameData();
-
-  // Initialize banners
-  const oneDay = 24 * 60 * 60 * 1000;
-
-  gacha.addBanner(new Banner('Standard Wish', 'Keqing', ['Barbara', 'Fischl', 'Noelle'], Infinity, Date.now()));
-  gacha.addBanner(new Banner('Ballad in Goblets', 'Venti', ['Xiangling', 'Razor', 'Sucrose'], 14 * oneDay, Date.now())); // Starts in 7 days
-  gacha.addBanner(new Banner('Sparkling Steps', 'Klee', ['Xingqiu', 'Noelle', 'Sucrose'], 14 * oneDay, Date.now() + oneDay * 21)); // Starts in 21 days
-  gacha.addBanner(new Banner('Farewell of Snezhnaya', 'Tartaglia', ['Diona', 'Beidou', 'Ningguang'], 14 * oneDay, Date.now() + oneDay * 35)); // Starts in 35 days
-  gacha.addBanner(new Banner('Gentry of Hermitage', 'Zhongli', ['Xinyan', 'Razor', 'Chongyun'], 14 * oneDay, Date.now() + oneDay * 49)); // Starts in 49 days
-  gacha.addBanner(new Banner('Secretum Secretorum', 'Albedo', ['Fischl', 'Sucrose', 'Bennett'], 14 * oneDay, Date.now() + oneDay * 63)); // Starts in 63 days
-  
 
   createBannerButtons();
   initializeBannerScroll();
@@ -2617,7 +3388,7 @@ function initializeApp() {
     document.getElementById('collection-button').addEventListener('click', () => app.showPage('character-collection-page'));
     document.getElementById('autobattler-button').addEventListener('click', () => app.showPage('autobattler-page'));
     document.getElementById('weapon-management-button').addEventListener('click', () => app.showPage('weapon-management-page'));
-    
+
   }
   initializeNavigation();
 
@@ -2628,9 +3399,8 @@ function initializeApp() {
   // Add abilities and characters
   defineAbilities(characterManager);
 
-  updateBannerInfo();
-  renderBanners();
-
+  // Autosave every 60 seconds
+  //setInterval(autosave, 60000);
 }
 
 

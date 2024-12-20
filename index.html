@@ -11,104 +11,109 @@
 <body>
 	<div id="header-bar">
 		<div id="navigation-buttons">
-		  <!-- Navigation buttons will be dynamically inserted here -->
-		  <button id="gacha-button">Gacha</button>
-		  <button id="collection-button">Collection</button>
-		  <button id="autobattler-button">Autobattler</button>
-		  <button id="weapon-management-button">Weapons</button>
+			<!-- Navigation buttons will be dynamically inserted here -->
+			<button id="gacha-button">Gacha</button>
+			<button id="collection-button">Collection</button>
+			<button id="autobattler-button">Autobattler</button>
+			<button id="weapon-management-button">Weapons</button>
+			<button id="settings-button">Settings</button>
 		</div>
 		<div id="resource-display">
-		  <!-- Resources dynamically updated -->
-		  <p>Crystallized XP: <span id="resource-xp">0</span></p>
-		  <p>Soul Gems: <span id="resource-gems">0</span></p>
+			<!-- Resources dynamically updated -->
+			<p>Crystallized XP: <span id="resource-xp">0</span></p>
+			<p>Soul Gems: <span id="resource-gems">0</span></p>
 		</div>
-	  </div>	  
+	</div>
 	<div id="app">
 		<div id="gacha-page" class="page">
 			<div class="gacha-container">
-			  <!-- Left Sidebar: Currently Available Banners -->
-<!-- Left Sidebar: Available and Upcoming Banners -->
+				<!-- Left Sidebar: Currently Available Banners -->
+				<!-- Left Sidebar: Available and Upcoming Banners -->
 				<aside id="banners-sidebar" class="gacha-sidebar">
 					<!-- Currently Available Banners -->
 					<h3>Available Banners</h3>
 					<div id="available-banners-list">
-					<!-- Dynamically filled with available banners -->
+						<!-- Dynamically filled with available banners -->
 					</div>
-				
+
 					<hr /> <!-- Separator -->
-				
+
 					<!-- Upcoming Banners -->
 					<h3>Upcoming Banners</h3>
 					<div id="upcoming-banners-list">
-					<!-- Dynamically filled with upcoming banners -->
+						<!-- Dynamically filled with upcoming banners -->
 					</div>
 				</aside>
 				<!-- Main Section: Currently Selected Banner -->
 				<main id="selected-banner" class="gacha-main">
 					<div class="full-banner-display">
-					  <!-- Banner Image -->
-					  <div id="gacha-banner-image" class="gacha-banner-image"></div>
-				  
-					  <!-- Banner Overlay -->
-					  <div class="banner-overlay">
-						<h2 id="banner-title">Standard Wish</h2>
-						<p id="featured-5-star">Featured 5★: Keqing</p>
-						<p id="banner-time-remaining">Infinite time remaining</p>
-					  </div>
-				  
-					  <!-- Pull Buttons -->
-					  <div class="banner-actions">
-						<button id="pull-single-button" class="pull-button">Pull 1x</button>
-						<button id="pull-ten-button" class="pull-button">Pull 10x</button>
-					  </div>
+						<!-- Banner Image -->
+						<div id="gacha-banner-image" class="gacha-banner-image"></div>
+
+						<!-- Banner Overlay -->
+						<div class="banner-overlay">
+							<h2 id="banner-title">Standard Wish</h2>
+							<div id="featured-items">
+								<p>Featured 5★: Keqing</p>
+								<p>Featured 4★: Barbara, Xiangling, Fischl</p>
+							</div>
+							<p id="banner-time-remaining">Infinite time remaining</p>
+						</div>
+
+						<!-- Pull Buttons -->
+						<div class="banner-actions">
+							<button id="pull-single-button" class="pull-button">Pull 1x</button>
+							<button id="pull-ten-button" class="pull-button">Pull 10x</button>
+						</div>
 					</div>
-				  </main>
+				</main>
 			</div>
-		  </div>
+		</div>
 		<div id="character-collection-page" class="page" style="display: none;">
 			<div class="collection-container">
 				<div class="character-list">
 				</div>
 				<div id="character-details-container">
 					<div id="character-art">
-					  <img id="character-image" src="images/characters/default.png" alt="Character Art">
+						<img id="character-image" src="images/characters/default.png" alt="Character Art">
 					</div>
 					<div id="character-info">
-					  <h2 id="character-name">Character Name</h2>
-					  <p id="character-rarity">Rarity: <span class="rarity-text">5★</span></p>
-					  <p id="character-element">Element: <span class="element-text">Fire</span></p>
-					  <p id="character-class">Weapon Class: <span class="class-text">Sword</span></p>
-					  <div id="character-stats">
-						<h3>Stats</h3>
-						<ul>
-						  <li>Level: <span id="character-level">1</span>/<span id="character-max-level">100</span></li>
-						  <li>HP: <span id="character-hp">1200</span>/<span id="character-max-hp">1200</span></li>
-						  <li>ATK: <span id="character-atk">30</span></li>
-						  <li>DEF: <span id="character-def">25</span></li>
-						  <li>SPEED: <span id="character-speed">140</span></li>
-						  <li>CRIT CHANCE: <span id="character-crit-chance">15</span>%</li>
-						  <li>CRIT DAMAGE: <span id="character-crit-damage">2.0</span>x</li>
-						</ul>
-					  </div>
-					  <div id="character-weapon">
-						<h3>Equipped Weapon</h3>
-						<p id="weapon-name">None</p>
-						<div id="weapon-selector"></div>
-					  </div>
-					  <div id="character-abilities">
-						<h3>Abilities</h3>
-						<p id="ability-1">Skill 1: <span id="character-skill-1">Fireball</span></p>
-						<p id="ability-2">Skill 2: <span id="character-skill-2">Blazing Heat</span></p>
-						<p id="ability-passive">Passive: <span id="character-passive">Flame Aura</span></p>
-					  </div>
-					  <div id="character-actions">
-						<button id="level-up-button">Level Up</button>
-						<button id="awaken-button">Awaken</button>
-					  </div>
+						<h2 id="character-name">Character Name</h2>
+						<p id="character-rarity">Rarity: <span class="rarity-text">5★</span></p>
+						<p id="character-element">Element: <span class="element-text">Fire</span></p>
+						<p id="character-class">Weapon Class: <span class="class-text">Sword</span></p>
+						<div id="character-stats">
+							<h3>Stats</h3>
+							<ul>
+								<li>Level: <span id="character-level">1</span>/<span id="character-max-level">100</span>
+								</li>
+								<li>HP: <span id="character-hp">1200</span>/<span id="character-max-hp">1200</span></li>
+								<li>ATK: <span id="character-atk">30</span></li>
+								<li>DEF: <span id="character-def">25</span></li>
+								<li>SPEED: <span id="character-speed">140</span></li>
+								<li>CRIT CHANCE: <span id="character-crit-chance">15</span>%</li>
+								<li>CRIT DAMAGE: <span id="character-crit-damage">2.0</span>x</li>
+							</ul>
+						</div>
+						<div id="character-weapon">
+							<h3>Equipped Weapon</h3>
+							<p id="weapon-name">None</p>
+							<div id="weapon-selector"></div>
+						</div>
+						<div id="character-abilities">
+							<h3>Abilities</h3>
+							<p id="ability-1">Skill 1: <span id="character-skill-1">Fireball</span></p>
+							<p id="ability-2">Skill 2: <span id="character-skill-2">Blazing Heat</span></p>
+							<p id="ability-passive">Passive: <span id="character-passive">Flame Aura</span></p>
+						</div>
+						<div id="character-actions">
+							<button id="level-up-button">Level Up</button>
+							<button id="awaken-button">Awaken</button>
+						</div>
 					</div>
-				  </div>			  
+				</div>
 			</div>
-		</div>        
+		</div>
 		<div id="autobattler-page" class="page" style="display: none;">
 			<h1>Autobattler</h1>
 			<div id="current-stage"></div>
@@ -156,7 +161,7 @@
 					<div id="weapon-details"></div>
 				</div>
 			</div>
-		</div>    
+		</div>
 	</div>
 	<div id="auto-enhance-modal" class="modal">
 		<div class="modal-content">
@@ -178,7 +183,7 @@
 			</div>
 			<button id="apply-auto-enhance">Apply Enhancement</button>
 		</div>
-	</div>    
+	</div>
 	<div id="item-modal" class="modal">
 		<div class="modal-content">
 			<img id="modal-image" src="" alt="Item Image">
@@ -189,13 +194,31 @@
 	</div>
 	<div id="gacha-modal" class="modal">
 		<div class="modal-content">
-		  <span id="close-modal" class="close">&times;</span>
-		  <div id="gacha-results">
-			<!-- Gacha pull results will be dynamically added here -->
-		  </div>
+			<span id="close-modal" class="close">&times;</span>
+			<div id="gacha-results">
+				<!-- Gacha pull results will be dynamically added here -->
+			</div>
 		</div>
-	  </div>
-	  
+	</div>
+	<!-- Settings Modal -->
+	<div id="settings-modal" class="modal">
+		<div class="modal-content">
+			<span class="close" id="close-settings-modal">&times;</span>
+			<h2>Settings</h2>
+			<div class="settings-options">
+				<button id="save-progress">Save Progress</button>
+				<button id="export-progress">Export Progress</button>
+				<button id="import-progress">Import Progress</button>
+				<button id="hard-reset" style="background-color: red; color: white;">Hard Reset</button>
+				<button id="save-settings">Save Settings</button>
+			</div>
+		</div>
+	</div>
+	<div id="autosave-notification"
+		style="display: none; position: fixed; bottom: 20px; right: 20px; background: rgba(0, 0, 0, 0.7); color: white; padding: 10px; border-radius: 5px; font-size: 14px;">
+		Progress Autosaved!
+	</div>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/uuid/8.3.2/uuidv4.min.js"></script>
 	<script type="module" src="script.js"></script>
 </body>
 

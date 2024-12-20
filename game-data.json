@@ -1,7 +1,39 @@
 {
+  "characterStats": {
+    "baseStats": {
+      "3-star": { "hp": 800, "atk": 96, "def": 20, "speed": 100, "energyRecharge": 1.0, "critChance": 5, "critDamage": 1.5 },
+      "4-star": { "hp": 1000, "atk": 120, "def": 25, "speed": 120, "energyRecharge": 1.2, "critChance": 10, "critDamage": 1.75 },
+      "5-star": { "hp": 1200, "atk": 144, "def": 30, "speed": 140, "energyRecharge": 1.5, "critChance": 15, "critDamage": 2.0 }
+    },
+    "growthRates": {
+      "3-star": { "hp": 60, "atk": 4.5, "def": 1.5, "speed": 2, "energyRecharge": 0.05, "critChance": 0.2, "critDamage": 0.05 },
+      "4-star": { "hp": 75, "atk": 6, "def": 2, "speed": 2.5, "energyRecharge": 0.07, "critChance": 0.3, "critDamage": 0.1 },
+      "5-star": { "hp": 90, "atk": 7.5, "def": 2.5, "speed": 3, "energyRecharge": 0.1, "critChance": 0.5, "critDamage": 0.2 }
+    },
+    "rarityLevels": {
+      "3-star": 60,
+      "4-star": 80,
+      "5-star": 100,
+      "6-star": 120
+    }
+  },
+  "weaponStats": {
+    "baseRanges": {
+      "3-star": { "atk": [64, 128], "def": [32, 64] },
+      "4-star": { "atk": [80, 160], "def": [40, 80] },
+      "5-star": { "atk": [96, 192], "def": [48, 96] }
+    },
+    "typeModifiers": {
+      "Sword": { "atk": 1.2, "def": 1.0 },
+      "Bow": { "atk": 1.4, "def": 0.8 },
+      "Polearm": { "atk": 1.1, "def": 1.1 },
+      "Axe": { "atk": 1.3, "def": 0.9 },
+      "Magic": { "atk": 1.5, "def": 0.7 }
+    }
+  },
   "balance": {
-    "levelUpCostBase": 100,
-    "levelUpCostPerLevel": 50,
+    "levelUpCostBase": 150,
+    "levelUpCostPerLevel": 75,
     "scalingExponent": 1.1,
     "weaponEnhanceBaseXP": 100,
     "weaponEnhanceMultiplier": {
@@ -83,7 +115,7 @@
       "skills": [
         "Fireball",
         "Fireball",
-        "FireResistance"
+        "Team Spirit"
       ],
       "weaponClass": "Sword"
     },
@@ -94,7 +126,7 @@
       "skills": [
         "Fireball",
         "Fireball",
-        "FireResistance"
+        "Battle Hardened"
       ],
       "weaponClass": "Magic"
     },
@@ -127,7 +159,7 @@
       "skills": [
         "Fireball",
         "Fireball",
-        "FireResistance"
+        "Enduring Soul"
       ],
       "weaponClass": "Polearm"
     },
@@ -141,6 +173,90 @@
         "FireResistance"
       ],
       "weaponClass": "Polearm"
+    },
+    {
+      "name": "Percy Jackson",
+      "baseRarity": "5-star",
+      "element": "Water",
+      "skills": ["Riptide Slash", "Ocean’s Fury", "Son of Poseidon"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Annabeth Chase",
+      "baseRarity": "4-star",
+      "element": "Earth",
+      "skills": ["Shield Bash", "Battle Cry", "Team Spirit"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Grover Underwood",
+      "baseRarity": "4-star",
+      "element": "Wind",
+      "skills": ["Whirlwind Slash", "Quick Step", "Swift Footed"],
+      "weaponClass": "Polearm"
+    },
+    {
+      "name": "Clarisse La Rue",
+      "baseRarity": "4-star",
+      "element": "Fire",
+      "skills": ["Power Strike", "Fortify", "Battle Hardened"],
+      "weaponClass": "Axe"
+    },
+    {
+      "name": "Kaladin Stormblessed",
+      "baseRarity": "5-star",
+      "element": "Wind",
+      "skills": ["Windrunner's Leap", "Highstorm", "Bridge Four Bond"],
+      "weaponClass": "Polearm"
+    },
+    {
+      "name": "Shallan Davar",
+      "baseRarity": "4-star",
+      "element": "Light",
+      "skills": ["Energy Burst", "Blindside", "Mana Conduit"],
+      "weaponClass": "Magic"
+    },
+    {
+      "name": "Adolin Kholin",
+      "baseRarity": "4-star",
+      "element": "Earth",
+      "skills": ["Piercing Thrust", "Shield Bash", "Iron Will"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Renarin Kholin",
+      "baseRarity": "4-star",
+      "element": "Light",
+      "skills": ["Healing Light", "Battle Cry", "Enduring Soul"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Joker",
+      "baseRarity": "5-star",
+      "element": "Dark",
+      "skills": ["Arsène's Strike", "All-Out Attack", "Wild Card"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Morgana",
+      "baseRarity": "4-star",
+      "element": "Wind",
+      "skills": ["Whirlwind Slash", "Quick Step", "Swift Footed"],
+      "weaponClass": "Magic"
+    },
+    {
+      "name": "Makoto",
+      "baseRarity": "4-star",
+      "element": "Light",
+      "skills": ["Power Strike", "Fortify", "Critical Edge"],
+      "weaponClass": "Sword"
+    },
+    {
+      "name": "Yusuke",
+      "baseRarity": "4-star",
+      "element": "Water",
+      "skills": ["Piercing Thrust", "Energy Burst", "Precision Strike"],
+      "weaponClass": "Sword"
     }
   ],
   "banners": [
@@ -152,7 +268,7 @@
         "Fischl",
         "Noelle"
       ],
-      "duration": "Infinity",
+      "duration": 0,
       "startTime": "2024-06-01T00:00:00Z"
     },
     {
@@ -164,6 +280,27 @@
         "Sucrose"
       ],
       "duration": 1209600000,
+      "startTime": "2024-06-07T00:00:00Z"
+    },
+    {
+      "name": "Percy Jackson Banner",
+      "featured5Star": "Percy Jackson",
+      "featured4Stars": ["Annabeth Chase", "Grover Underwood", "Clarisse La Rue"],
+      "duration": 0,
+      "startTime": "2024-06-07T00:00:00Z"
+    },
+    {
+      "name": "The Stormlight Archive Banner",
+      "featured5Star": "Kaladin Stormblessed",
+      "featured4Stars": ["Shallan Davar", "Adolin Kholin", "Renarin Kholin"],
+      "duration": 0,
+      "startTime": "2024-06-07T00:00:00Z"
+    },
+    {
+      "name": "Persona 5 Banner",
+      "featured5Star": "Joker",
+      "featured4Stars": ["Morgana", "Makoto", "Yusuke"],
+      "duration": 0,
       "startTime": "2024-06-07T00:00:00Z"
     }
   ]
